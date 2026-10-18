@@ -33,6 +33,12 @@ enum NoteBox: String, Codable, CaseIterable, Identifiable {
         case .trash: "Trash"
         }
     }
+
+    /// An unknown value falls back to the inbox instead of failing the whole index.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = NoteBox(rawValue: raw) ?? .inbox
+    }
 }
 
 struct NoteEntry: Codable, Identifiable, Equatable {
@@ -67,6 +73,8 @@ final class NoteStore: ObservableObject {
     @Published private(set) var justSaved = false
     /// The box the sidebar is showing.
     @Published private(set) var box: NoteBox = .inbox
+    /// A one-off message for the window, such as a conflict copy being made.
+    @Published var notice: String?
     /// Full text of every note, for sidebar search.
     private var contents: [UUID: String] = [:]
 
@@ -81,9 +89,13 @@ final class NoteStore: ObservableObject {
     private var fileWatcher: DispatchSourceFileSystemObject?
     private var watchDebounce: DispatchWorkItem?
     private var lastSelfWrite = Date.distantPast
+    /// Modification date of the open note's file when we last read or wrote it.
+    private var diskStamp: Date?
 
     private static let autosaveDelay = 0.6
     private static let savedBadgeDuration = 1.5
+    /// Larger files are not imported, and not read when scanning the folders.
+    static let maxFileBytes = 20 * 1024 * 1024
 
     init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -164,6 +176,7 @@ final class NoteStore: ObservableObject {
         notes[i].lastOpened = Date()
         activeID = id
         text = (try? String(contentsOf: url(for: notes[i]), encoding: .utf8)) ?? ""
+        diskStamp = Self.modificationDate(url(for: notes[i]))
         textVersion += 1
         UserDefaults.standard.set(id.uuidString, forKey: Prefs.activeNote)
         saveIndex()
@@ -187,9 +200,23 @@ final class NoteStore: ObservableObject {
         pendingFlush = nil
         guard dirty, let note = active else { return }
         dirty = false
+        let file = url(for: note)
+        // Another app changed the file since we last read or wrote it:
+        // keep both versions instead of writing over theirs.
+        if let onDisk = Self.modificationDate(file), let known = diskStamp, onDisk != known {
+            saveConflictCopy(of: note)
+            if let disk = try? String(contentsOf: file, encoding: .utf8) {
+                text = disk
+                textVersion += 1
+            }
+            diskStamp = onDisk
+            return
+        }
+        // A file deleted elsewhere while typing is written back, so the text survives.
         lastSelfWrite = Date()
         do {
-            try text.write(to: url(for: note), atomically: true, encoding: .utf8)
+            try text.write(to: file, atomically: true, encoding: .utf8)
+            diskStamp = Self.modificationDate(file)
             // An atomic write replaces the file, so watch the new one.
             watchActiveFile()
             previews[note.id] = Self.preview(of: text)
@@ -199,6 +226,26 @@ final class NoteStore: ObservableObject {
         } catch {
             NSSound.beep()
         }
+    }
+
+    /// Saves the editor's text next to the note as "<title> (conflict).txt".
+    private func saveConflictCopy(of note: NoteEntry) {
+        let fileName = uniqueFileName(base: "\(note.title) (conflict)", in: note.location)
+        lastSelfWrite = Date()
+        do {
+            try text.write(to: dirs[note.location]!.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
+        } catch {
+            NSSound.beep()
+            return
+        }
+        let copy = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
+                             lastOpened: Date(), createdAt: Date(), box: note.location)
+        notes.append(copy)
+        previews[copy.id] = Self.preview(of: text)
+        contents[copy.id] = text
+        modified[copy.id] = Date()
+        saveIndex()
+        notice = "Changed in another app. Your version was saved as “\(copy.title)”."
     }
 
     private func showSavedBadge() {
@@ -213,12 +260,17 @@ final class NoteStore: ObservableObject {
 
     /// New notes always go to the inbox, which the sidebar switches to.
     @discardableResult
-    func newNote(content: String = "", name: String? = nil) -> UUID {
+    func newNote(content: String = "", name: String? = nil) -> UUID? {
         flushNow()
-        box = .inbox
         let fileName = uniqueFileName(base: name ?? "untitled", in: .inbox)
         lastSelfWrite = Date()
-        try? content.write(to: dirs[.inbox]!.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
+        do {
+            try content.write(to: dirs[.inbox]!.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
+        } catch {
+            NSSound.beep()
+            return nil
+        }
+        box = .inbox
         let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
                               lastOpened: Date(), createdAt: Date(), box: .inbox)
         notes.append(entry)
@@ -235,10 +287,19 @@ final class NoteStore: ObservableObject {
         let clean = Self.sanitize(newTitle)
         guard clean != notes[i].title else { return }
         if id == activeID { flushNow() }
-        let target = uniqueFileName(base: clean, in: notes[i].location)
+        let dir = dirs[notes[i].location]!
+        // APFS ignores case, so "Foo" → "foo" is the same file: rename through a temporary name.
+        let caseOnly = clean.lowercased() == notes[i].title.lowercased()
+        let target = caseOnly ? "\(clean).txt" : uniqueFileName(base: clean, in: notes[i].location)
         lastSelfWrite = Date()
         do {
-            try FileManager.default.moveItem(at: url(for: notes[i]), to: dirs[notes[i].location]!.appendingPathComponent(target))
+            var source = url(for: notes[i])
+            if caseOnly {
+                let temporary = dir.appendingPathComponent(".rename-\(UUID().uuidString).txt")
+                try FileManager.default.moveItem(at: source, to: temporary)
+                source = temporary
+            }
+            try FileManager.default.moveItem(at: source, to: dir.appendingPathComponent(target))
             notes[i].fileName = target
             saveIndex()
             if id == activeID { watchActiveFile() }
@@ -329,13 +390,23 @@ final class NoteStore: ObservableObject {
 
     // MARK: Import and export
 
-    /// Files come in as plain text: RTF, HTML and the like lose their formatting.
+    /// Files come in as plain text: RTF and HTML lose their formatting. Legacy
+    /// Word and web-archive files are not parsed, and files over 20 MB are refused.
     func importFiles(_ urls: [URL]) {
         for url in urls {
             let ext = url.pathExtension.lowercased()
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            guard size <= Self.maxFileBytes else {
+                NSSound.beep()
+                notice = "“\(url.lastPathComponent)” is larger than 20 MB and wasn’t imported."
+                continue
+            }
             var content: String?
-            if ["rtf", "rtfd", "html", "htm", "webarchive", "doc", "docx"].contains(ext) {
+            if ["doc", "docx", "webarchive"].contains(ext) {
+                content = nil
+            } else if ["rtf", "rtfd", "html", "htm"].contains(ext) {
                 content = (try? NSAttributedString(url: url, options: [:], documentAttributes: nil))?.string
+                    .replacingOccurrences(of: "\u{FFFC}", with: "")
             } else {
                 content = try? String(contentsOf: url, encoding: .utf8)
             }
@@ -377,7 +448,7 @@ final class NoteStore: ObservableObject {
 
     /// Brings the index in line with the .txt files actually in each folder.
     private func reconcile() {
-        let keys: [URLResourceKey] = [.contentModificationDateKey, .creationDateKey]
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .creationDateKey, .fileSizeKey]
         var onDisk: [NoteBox: [URL]] = [:]
         for box in NoteBox.allCases {
             onDisk[box] = (try? FileManager.default.contentsOfDirectory(at: dirs[box]!, includingPropertiesForKeys: keys))?
@@ -402,7 +473,8 @@ final class NoteStore: ObservableObject {
             let values = try? file.resourceValues(forKeys: Set(keys))
             // Entries saved before creation dates were tracked take the file's.
             if notes[i].createdAt == nil { notes[i].createdAt = values?.creationDate ?? notes[i].lastOpened }
-            let body = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let tooLarge = (values?.fileSize ?? 0) > Self.maxFileBytes
+            let body = tooLarge ? "" : ((try? String(contentsOf: file, encoding: .utf8)) ?? "")
             freshPreviews[notes[i].id] = Self.preview(of: body)
             freshContents[notes[i].id] = body
             freshModified[notes[i].id] = values?.contentModificationDate
@@ -447,8 +519,17 @@ final class NoteStore: ObservableObject {
     }
 
     private func applyDiskChanges() {
-        // Ignore the echo of our own writes.
-        guard Date().timeIntervalSince(lastSelfWrite) > 1 else { return }
+        // Right after our own write, wait and look again rather than dropping
+        // the event: an outside change may have arrived in the same moment.
+        let sinceOwnWrite = Date().timeIntervalSince(lastSelfWrite)
+        guard sinceOwnWrite > 1 else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + (1.05 - sinceOwnWrite)) { [weak self] in
+                self?.applyDiskChanges()
+            }
+            return
+        }
+        // Save unsaved typing before re-reading the folders, so it can't be lost.
+        if dirty { flushNow() }
         reconcile()
         // Editors that save atomically replace the file we were watching.
         watchActiveFile()
@@ -457,6 +538,7 @@ final class NoteStore: ObservableObject {
         } else if let note = active, !dirty,
                   let disk = try? String(contentsOf: url(for: note), encoding: .utf8), disk != text {
             text = disk
+            diskStamp = Self.modificationDate(url(for: note))
             textVersion += 1
         }
     }
@@ -475,12 +557,24 @@ final class NoteStore: ObservableObject {
         return candidate
     }
 
+    /// Makes a safe, visible file name: no path separators, control or
+    /// direction-override characters, no leading dots, at most 200 bytes.
     static func sanitize(_ name: String) -> String {
-        let cleaned = name
+        let banned = CharacterSet.controlCharacters
+            .union(CharacterSet(charactersIn: "\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}"))
+        var cleaned = String(String.UnicodeScalarView(name.unicodeScalars.filter { !banned.contains($0) }))
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? "untitled" : String(cleaned.prefix(120))
+        while cleaned.hasPrefix(".") { cleaned.removeFirst() }
+        cleaned = cleaned.trimmingCharacters(in: .whitespaces)
+        // File names are limited to 255 bytes; leave room for " 99.txt".
+        while cleaned.utf8.count > 200 { cleaned.removeLast() }
+        return cleaned.isEmpty ? "untitled" : cleaned
+    }
+
+    static func modificationDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     static func preview(of text: String) -> String {

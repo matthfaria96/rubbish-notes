@@ -75,8 +75,10 @@ final class EditorTextView: NSTextView {
 
     private static func plainString(from pasteboard: NSPasteboard) -> String? {
         if let string = pasteboard.string(forType: .string) { return string }
-        if let data = pasteboard.data(forType: .rtf) { return NSAttributedString(rtf: data, documentAttributes: nil)?.string }
-        if let data = pasteboard.data(forType: .html) { return NSAttributedString(html: data, documentAttributes: nil)?.string }
+        // HTML-only pastes are not parsed; RTF is read as text without attachments.
+        if let data = pasteboard.data(forType: .rtf) {
+            return NSAttributedString(rtf: data, documentAttributes: nil)?.string.replacingOccurrences(of: "\u{FFFC}", with: "")
+        }
         return nil
     }
 }

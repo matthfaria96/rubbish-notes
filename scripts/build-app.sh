@@ -26,7 +26,8 @@ make_icon() {
 make_icon Assets/Logo.png AppIcon 0E1118
 make_icon Assets/LogoRed.png AppIconRed ED0D0D
 
-codesign --force --sign - "$BUNDLE"
+# Ad-hoc signature with the hardened runtime (blocks DYLD_* injection and unsigned code).
+codesign --force --options runtime --sign - "$BUNDLE"
 echo "Built $BUNDLE"
 
 if [[ "${1:-}" == "--install" ]]; then

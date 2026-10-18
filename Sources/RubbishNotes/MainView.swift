@@ -47,6 +47,11 @@ struct MainView: View {
         .preferredColorScheme(colorScheme)
         .background(WindowConfigurator(floatOnTop: floatOnTop))
         .onDrop(of: [.fileURL], isTargeted: nil, perform: importDrop)
+        .onChange(of: store.notice) {
+            guard let message = store.notice else { return }
+            showToast(message)
+            store.notice = nil
+        }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 NotificationCenter.default.post(name: .focusEditor, object: nil)
