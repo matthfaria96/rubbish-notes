@@ -112,7 +112,7 @@ final class NoteStore: ObservableObject {
         loadIndex()
         reconcile()
         let defaults = UserDefaults.standard
-        if notes.isEmpty && !defaults.bool(forKey: Prefs.didSeed) { seedStarters() }
+        if !defaults.bool(forKey: Prefs.didSeed) { seedStarters() }
         defaults.set(true, forKey: Prefs.didSeed)
 
         let saved = defaults.string(forKey: Prefs.activeNote).flatMap(UUID.init(uuidString:))
@@ -583,40 +583,67 @@ final class NoteStore: ObservableObject {
         return String(line.trimmingCharacters(in: .whitespaces).prefix(90))
     }
 
+    /// The first launch opens one welcome note in the system's language.
     private func seedStarters() {
-        newNote(content: Starters.shortcuts, name: "Every shortcut")
-        newNote(content: Starters.welcome, name: "Welcome to Rubbish Notes")
+        newNote(content: Starters.welcome.text, name: Starters.welcome.title)
     }
 }
 
+/// The welcome note: Portuguese on Portuguese systems, English elsewhere.
+/// Button and menu names stay in English because the app's interface is English.
 enum Starters {
-    static let welcome = """
-    This note is already saved.
+    static var welcome: (title: String, text: String) {
+        let portuguese = Locale.preferredLanguages.first?.hasPrefix("pt") ?? false
+        return portuguese ? (portugueseTitle, portugueseText) : (englishTitle, englishText)
+    }
 
-    Everything you type here lands in a plain .txt file on your Mac a moment after you stop typing. No save button, no cloud, no "unsaved changes". Quit mid-sentence; the sentence will be here.
+    static let portugueseTitle = "Bem-vindo ao Rubbish Notes"
+    static let portugueseText = """
+    👋 Obrigado por usar o Rubbish Notes!
+    Aqui é só você e o texto.
 
-    Paste anything and only the words arrive. Bold, colors and fonts stay behind. That's on purpose: it's a scrap of paper, not a layout tool.
+    ✍️ Escreva: tudo é salvo sozinho, em .txt
+    📌 Pin · 🗄️ Archive · 🗑️ Trash (dá para recuperar)
+    ✏️ Passe o mouse numa nota para renomear
+    ⚡️ Focus Mode esconde todo o resto
 
-    Hover a note in the sidebar and click the pencil to rename it. Right-click to pin, archive or move it to the Trash; trashed notes wait in the Trash until you empty it. Drop a file on the window and it becomes a note.
+    ⌨️ Atalhos
+    ⌘N  nova nota
+    ⌘F  buscar · ⌥⌘F substituir
+    ⌘1 ⌘2 ⌘3  Inbox · Archive · Trash
+    ⇧⌘F  Focus Mode
+    ⌘= ⌘-  tamanho do texto
+    ⌘,  ajustes
 
-    Crumple this one up whenever you like.
+    🎨 Temas: Ajustes › Themes
+    🌓 Aparência e ícone: Ajustes › General
+    🔧 Mudar atalhos: Ajustes do Sistema › Teclado › Atalhos de Teclado › Atalhos de Apps
+
+    Pode apagar esta nota quando quiser. 🗑️
     """
 
-    static let shortcuts = """
+    static let englishTitle = "Welcome to Rubbish Notes"
+    static let englishText = """
+    👋 Thanks for using Rubbish Notes!
+    Just you and the text.
+
+    ✍️ Write: everything saves itself, as .txt
+    📌 Pin · 🗄️ Archive · 🗑️ Trash (you can restore)
+    ✏️ Hover a note to rename it
+    ⚡️ Focus Mode hides everything else
+
+    ⌨️ Shortcuts
     ⌘N  new note
-    ⌘O  open a file as a note
-    ⇧⌘S  save a copy somewhere else
-    ⌘F  find in the note
-    ⌥⌘F  find and replace
-    ⌘G  ⇧⌘G  next and previous match
-    ⌘1  ⌘2  ⌘3  Inbox, Archive, Trash
-    ⇧⌘F  focus mode: just you and the text
-    ⌃⌘S  show or hide the sidebar
-    ⌥⌘T  float on top of other windows
-    ⌘=  ⌘-  ⌘0  text size
-    ⌘P  print
+    ⌘F  find · ⌥⌘F replace
+    ⌘1 ⌘2 ⌘3  Inbox · Archive · Trash
+    ⇧⌘F  Focus Mode
+    ⌘= ⌘-  text size
     ⌘,  settings
 
-    That's all of them.
+    🎨 Themes: Settings › Themes
+    🌓 Appearance and icon: Settings › General
+    🔧 Change shortcuts: System Settings › Keyboard › Keyboard Shortcuts › App Shortcuts
+
+    Delete this note whenever you like. 🗑️
     """
 }
