@@ -12,6 +12,9 @@ struct SettingsView: View {
             Tab("Editor", systemImage: "textformat") {
                 EditorSettings()
             }
+            Tab("Themes", systemImage: "paintpalette") {
+                ThemeSettings()
+            }
         }
         .frame(width: 500)
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).scheme)
@@ -21,9 +24,22 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
+    @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
 
     var body: some View {
         Form {
+            Section("App Icon") {
+                HStack(spacing: 24) {
+                    ForEach(IconStyle.allCases) { style in
+                        IconChoice(style: style, selected: style.rawValue == iconStyleRaw) {
+                            iconStyleRaw = style.rawValue
+                            style.applyToDock()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
             Section {
                 Picker("Appearance", selection: $appearanceRaw) {
                     ForEach(AppearanceChoice.allCases) { choice in
@@ -35,11 +51,11 @@ private struct GeneralSettings: View {
             Section("Storage") {
                 LabeledContent {
                     Button("Show in Finder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([NoteStore.shared.notesDir])
+                        NSWorkspace.shared.activateFileViewerSelecting([NoteStore.shared.rootDir])
                     }
                 } label: {
                     Text("Notes Folder")
-                    Text(NoteStore.shared.notesDir.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                    Text(NoteStore.shared.rootDir.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -88,5 +104,118 @@ private struct EditorSettings: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// One selectable app icon, drawn like the system's icon pickers.
+private struct IconChoice: View {
+    let style: IconStyle
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Group {
+                    if let image = style.image {
+                        Image(nsImage: image).resizable()
+                    } else {
+                        Image(systemName: "app").resizable()
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .padding(4)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(selected ? style.accent : .clear, lineWidth: 3)
+                )
+                Text(style == .blue ? "\(style.title) (Default)" : style.title)
+                    .font(.callout)
+                    .foregroundStyle(selected ? .primary : .secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Theme gallery. Hovering a theme previews it at the top; clicking applies it.
+private struct ThemeSettings: View {
+    @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
+    @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
+    @StateObject private var hovered = ViewState<EditorTheme?>(nil)
+
+    private var accent: NSColor { (IconStyle(rawValue: iconStyleRaw) ?? .blue).accentNS }
+    private var selected: EditorTheme { EditorTheme.named(themeID) }
+
+    var body: some View {
+        let previewing = hovered.value ?? selected
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                ThemeSample(theme: previewing, fallbackAccent: accent, large: true)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
+                    .animation(.easeOut(duration: 0.15), value: previewing.id)
+                HStack {
+                    Text(previewing.name).font(.headline)
+                    Spacer()
+                    Text(previewing == selected ? "Current theme" : "Click to apply")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                    ForEach(EditorTheme.all) { theme in
+                        ThemeCard(theme: theme, selected: theme == selected, accent: accent) {
+                            themeID = theme.id
+                        }
+                        .onHover { inside in
+                            if inside { hovered.value = theme } else if hovered.value == theme { hovered.value = nil }
+                        }
+                    }
+                }
+                .padding(2)
+            }
+            .frame(height: 300)
+            Text("Dark and light themes also set the window's look while Appearance is Automatic.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(20)
+    }
+}
+
+private struct ThemeCard: View {
+    let theme: EditorTheme
+    let selected: Bool
+    let accent: NSColor
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                ThemeSample(theme: theme, fallbackAccent: accent)
+                    .frame(height: 66, alignment: .top)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(selected ? Color(nsColor: accent) : Color(nsColor: .separatorColor),
+                                          lineWidth: selected ? 2.5 : 1)
+                    )
+                HStack(spacing: 4) {
+                    Text(theme.name).lineLimit(1)
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color(nsColor: accent))
+                    }
+                }
+                .font(.callout)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(theme.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

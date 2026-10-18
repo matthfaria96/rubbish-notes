@@ -22,6 +22,7 @@ final class EditorTextView: NSTextView {
     var onRichPaste: (() -> Void)?
     var ruled = false
     var lineHeight: CGFloat = 26
+    var ruleColor = NSColor.separatorColor
     let maxColumnWidth: CGFloat = 700
 
     /// Start with the cursor in the note, not in the sidebar list.
@@ -46,14 +47,14 @@ final class EditorTextView: NSTextView {
         super.drawBackground(in: rect)
         guard ruled, lineHeight > 4 else { return }
         let top = textContainerOrigin.y
-        NSColor.separatorColor.withAlphaComponent(0.55).setFill()
+        ruleColor.withAlphaComponent(0.35).setFill()
         let firstRule = max(1, floor((rect.minY - top) / lineHeight))
         var y = top + firstRule * lineHeight
         while y <= rect.maxY + lineHeight {
             NSRect(x: rect.minX, y: y - 0.5, width: rect.width, height: 1).fill()
             y += lineHeight
         }
-        Brand.redNS.withAlphaComponent(0.35).setFill()
+        NSColor.systemRed.withAlphaComponent(0.35).setFill()
         NSRect(x: textContainerOrigin.x - 16, y: rect.minY, width: 1, height: rect.height).fill()
     }
 
@@ -87,6 +88,9 @@ struct EditorView: NSViewRepresentable {
     let font: NSFont
     let spellCheck: Bool
     let ruled: Bool
+    let editable: Bool
+    let theme: EditorTheme
+    let accent: NSColor
     @Binding var selection: SelectionStats
     var onRichPaste: () -> Void
 
@@ -108,7 +112,6 @@ struct EditorView: NSViewRepresentable {
         textView.isIncrementalSearchingEnabled = true
         textView.drawsBackground = false
         textView.textColor = .textColor
-        textView.insertionPointColor = Brand.redNS
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
@@ -140,7 +143,7 @@ struct EditorView: NSViewRepresentable {
         textView.minSize = NSSize(width: 0, height: scroll.contentSize.height)
 
         let lineHeight = ceil(font.pointSize * (ruled ? 1.75 : 1.45))
-        let styleKey = "\(font.fontName)|\(font.pointSize)|\(ruled)"
+        let styleKey = "\(font.fontName)|\(font.pointSize)|\(ruled)|\(theme.id)"
         if c.styleKey != styleKey {
             c.styleKey = styleKey
             let paragraph = NSMutableParagraphStyle()
@@ -148,17 +151,22 @@ struct EditorView: NSViewRepresentable {
             paragraph.maximumLineHeight = lineHeight
             c.attributes = [
                 .font: font,
-                .foregroundColor: NSColor.textColor,
+                .foregroundColor: theme.textNS(),
                 .paragraphStyle: paragraph,
                 .baselineOffset: ruled ? max(0, lineHeight * 0.2 + font.descender) : 0,
             ]
             textView.defaultParagraphStyle = paragraph
             textView.lineHeight = lineHeight
             textView.ruled = ruled
+            textView.ruleColor = theme.secondaryNS()
+            scroll.backgroundColor = theme.backgroundNS()
             c.applyAttributes()
             textView.needsDisplay = true
         }
         textView.isContinuousSpellCheckingEnabled = spellCheck
+        textView.isEditable = editable
+        textView.insertionPointColor = theme.accentNS(fallback: accent)
+        textView.selectedTextAttributes = [.backgroundColor: theme.selectionNS(fallback: accent)]
 
         if c.lastVersion != textVersion {
             c.lastVersion = textVersion

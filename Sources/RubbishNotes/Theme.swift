@@ -1,10 +1,55 @@
 import AppKit
 import SwiftUI
 
-/// The app follows the system look; the only brand color is the logo's red.
+/// The app follows the system look; its one brand color comes from the
+/// chosen icon and tints the cursor, selection and highlights.
+enum IconStyle: String, CaseIterable, Identifiable {
+    case blue, red
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .blue: "Blue"
+        case .red: "Red"
+        }
+    }
+
+    /// The .icns in the app bundle; the blue one is the bundle's own icon.
+    var resourceName: String {
+        switch self {
+        case .blue: "AppIcon"
+        case .red: "AppIconRed"
+        }
+    }
+
+    var accentNS: NSColor {
+        switch self {
+        case .blue: NSColor(srgbRed: 0.27, green: 0.52, blue: 0.98, alpha: 1)
+        case .red: NSColor(srgbRed: 0.93, green: 0.06, blue: 0.07, alpha: 1)
+        }
+    }
+
+    var accent: Color { Color(nsColor: accentNS) }
+
+    var image: NSImage? {
+        Bundle.main.url(forResource: resourceName, withExtension: "icns").flatMap(NSImage.init(contentsOf:))
+    }
+
+    static var current: IconStyle {
+        IconStyle(rawValue: UserDefaults.standard.string(forKey: Prefs.iconStyle) ?? "") ?? .blue
+    }
+
+    /// Swaps the Dock icon while the app runs. Finder keeps the bundle's
+    /// blue icon: changing it would modify the signed app bundle.
+    func applyToDock() {
+        NSApp.applicationIconImage = self == .blue ? nil : image
+    }
+}
+
 enum Brand {
-    static let red = Color(nsColor: redNS)
-    static let redNS = NSColor(srgbRed: 0.93, green: 0.06, blue: 0.07, alpha: 1)
+    static var accent: Color { IconStyle.current.accent }
+    static var accentNS: NSColor { IconStyle.current.accentNS }
 }
 
 enum AppearanceChoice: String, CaseIterable, Identifiable {

@@ -1,15 +1,23 @@
 // Renders Assets/Logo.png into a macOS .iconset: the artwork is clipped to the
 // standard rounded-square icon shape (824 pt inside a 1024 pt canvas) with a
 // soft drop shadow, at every size iconutil expects.
-// Usage: swift scripts/make-icon.swift <logo.png> <output.iconset>
+// Usage: swift scripts/make-icon.swift <logo.png> <output.iconset> [backdrop-hex]
 import AppKit
 
 let args = CommandLine.arguments
-guard args.count == 3, let logo = NSImage(contentsOfFile: args[1]) else {
+guard args.count >= 3, let logo = NSImage(contentsOfFile: args[1]) else {
     FileHandle.standardError.write("usage: make-icon.swift <logo.png> <output.iconset>\n".data(using: .utf8)!)
     exit(1)
 }
 let output = URL(fileURLWithPath: args[2])
+// Color behind the artwork, visible only where the logo has transparency.
+let backdropHex = args.count > 3 ? UInt32(args[3], radix: 16) ?? 0x0E1118 : 0x0E1118
+let backdrop = NSColor(
+    srgbRed: CGFloat((backdropHex >> 16) & 0xFF) / 255,
+    green: CGFloat((backdropHex >> 8) & 0xFF) / 255,
+    blue: CGFloat(backdropHex & 0xFF) / 255,
+    alpha: 1
+)
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
 func render(pixels: Int) -> Data {
@@ -33,7 +41,7 @@ func render(pixels: Int) -> Data {
     shadow.shadowBlurRadius = 18 * scale
     shadow.shadowOffset = NSSize(width: 0, height: -8 * scale)
     shadow.set()
-    NSColor(srgbRed: 0.93, green: 0.05, blue: 0.05, alpha: 1).setFill()
+    backdrop.setFill()
     shape.fill()
     NSGraphicsContext.restoreGraphicsState()
 

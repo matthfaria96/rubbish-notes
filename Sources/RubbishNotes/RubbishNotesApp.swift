@@ -3,6 +3,9 @@ import SwiftUI
 
 enum Prefs {
     static let appearance = "RubbishNotes.appearance"
+    static let iconStyle = "RubbishNotes.iconStyle"
+    static let editorTheme = "RubbishNotes.editorTheme"
+    static let focusMode = "RubbishNotes.focusMode"
     static let fontName = "RubbishNotes.editor.fontName"
     static let fontSize = "RubbishNotes.editor.fontSize"
     static let spellCheck = "RubbishNotes.spellCheck"
@@ -18,6 +21,10 @@ extension Notification.Name {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        IconStyle.current.applyToDock()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -34,6 +41,7 @@ struct RubbishNotesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = NoteStore.shared
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
+    @AppStorage(Prefs.focusMode) private var focusMode = false
     @AppStorage(Prefs.fontSize) private var fontSize = Prefs.defaultFontSize
     @AppStorage(Prefs.fontName) private var fontName = FontChoice.defaultName
 
@@ -67,8 +75,17 @@ struct RubbishNotesApp: App {
                 .keyboardShortcut("p")
                 .disabled(store.activeID == nil)
             }
+            CommandGroup(before: .sidebar) {
+                ForEach(Array(NoteBox.allCases.enumerated()), id: \.element) { index, box in
+                    Button(box.title) { store.show(box) }
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")))
+                }
+                Divider()
+            }
             CommandGroup(after: .sidebar) {
                 Divider()
+                Button(focusMode ? "Exit Focus Mode" : "Focus Mode") { focusMode.toggle() }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
                 Button(floatOnTop ? "Stop Floating on Top" : "Float on Top") { floatOnTop.toggle() }
                     .keyboardShortcut("t", modifiers: [.command, .option])
                 Divider()

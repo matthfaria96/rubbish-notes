@@ -2,6 +2,39 @@ import AppKit
 import Combine
 import UniformTypeIdentifiers
 
+/// Where a note lives. Each box is a real folder, so moving a note between
+/// boxes moves its .txt file, and a trashed note stays recoverable until the
+/// Trash is emptied.
+enum NoteBox: String, Codable, CaseIterable, Identifiable {
+    case inbox, archive, trash
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .inbox: "Inbox"
+        case .archive: "Archive"
+        case .trash: "Trash"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .inbox: "tray"
+        case .archive: "archivebox"
+        case .trash: "trash"
+        }
+    }
+
+    var folderName: String {
+        switch self {
+        case .inbox: "Notes"
+        case .archive: "Archive"
+        case .trash: "Trash"
+        }
+    }
+}
+
 struct NoteEntry: Codable, Identifiable, Equatable {
     var id: UUID
     var fileName: String
@@ -10,13 +43,17 @@ struct NoteEntry: Codable, Identifiable, Equatable {
     var lastOpened: Date
     /// Fixes the note's place in the list; older indexes may lack it.
     var createdAt: Date?
+    /// nil in indexes written before boxes existed, meaning the inbox.
+    var box: NoteBox?
+    var trashedAt: Date?
 
     var title: String { (fileName as NSString).deletingPathExtension }
+    var location: NoteBox { box ?? .inbox }
 }
 
-/// Every note is a real .txt file in the notes folder; the index only keeps
-/// what a file can't (pinning and recency). Text is written 0.6 s after the
-/// last keystroke, and the folder is watched so edits made elsewhere show up.
+/// Every note is a real .txt file; the index only keeps what a file can't
+/// (box, pinning, dates). Text is written 0.6 s after the last keystroke,
+/// and the folders are watched so edits made elsewhere show up.
 final class NoteStore: ObservableObject {
     static let shared = NoteStore()
 
@@ -27,16 +64,21 @@ final class NoteStore: ObservableObject {
     @Published private(set) var textVersion = 0
     @Published private(set) var previews: [UUID: String] = [:]
     @Published private(set) var modified: [UUID: Date] = [:]
+    @Published private(set) var justSaved = false
+    /// The box the sidebar is showing.
+    @Published private(set) var box: NoteBox = .inbox
     /// Full text of every note, for sidebar search.
     private var contents: [UUID: String] = [:]
-    @Published private(set) var justSaved = false
 
-    let notesDir: URL
+    let rootDir: URL
+    private let dirs: [NoteBox: URL]
     private let indexURL: URL
     private var dirty = false
     private var pendingFlush: DispatchWorkItem?
     private var savedBadge: DispatchWorkItem?
-    private var watcher: DispatchSourceFileSystemObject?
+    private var watchers: [DispatchSourceFileSystemObject] = []
+    /// Watches the open note's file: folder events miss in-place edits.
+    private var fileWatcher: DispatchSourceFileSystemObject?
     private var watchDebounce: DispatchWorkItem?
     private var lastSelfWrite = Date.distantPast
 
@@ -45,10 +87,15 @@ final class NoteStore: ObservableObject {
 
     init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let root = support.appendingPathComponent("Rubbish Notes", isDirectory: true)
-        notesDir = root.appendingPathComponent("Notes", isDirectory: true)
-        indexURL = root.appendingPathComponent("notes-index.json")
-        try? FileManager.default.createDirectory(at: notesDir, withIntermediateDirectories: true)
+        rootDir = support.appendingPathComponent("Rubbish Notes", isDirectory: true)
+        var dirs: [NoteBox: URL] = [:]
+        for box in NoteBox.allCases {
+            let dir = rootDir.appendingPathComponent(box.folderName, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            dirs[box] = dir
+        }
+        self.dirs = dirs
+        indexURL = rootDir.appendingPathComponent("notes-index.json")
 
         loadIndex()
         reconcile()
@@ -57,25 +104,37 @@ final class NoteStore: ObservableObject {
         defaults.set(true, forKey: Prefs.didSeed)
 
         let saved = defaults.string(forKey: Prefs.activeNote).flatMap(UUID.init(uuidString:))
-        let start = notes.first(where: { $0.id == saved })?.id ?? ordered.first?.id
+        let start = notes.first(where: { $0.id == saved && $0.location == .inbox })?.id ?? visible.first?.id
         select(start)
         startWatching()
     }
 
     // MARK: Lists
 
+    /// Pinned notes, shown above the rest in the inbox only.
     var pinnedNotes: [NoteEntry] {
-        notes.filter(\.pinned).sorted { ($0.pinnedAt ?? .distantPast) < ($1.pinnedAt ?? .distantPast) }
+        guard box == .inbox else { return [] }
+        return notes.filter { $0.location == .inbox && $0.pinned }
+            .sorted { ($0.pinnedAt ?? .distantPast) < ($1.pinnedAt ?? .distantPast) }
     }
 
-    var recentNotes: [NoteEntry] {
-        // Newest first, by creation only: opening or editing a note never moves it.
-        notes.filter { !$0.pinned }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+    /// The rest of the current box. Order never depends on opening a note:
+    /// creation date, newest first; the Trash shows the latest deletions first.
+    var listNotes: [NoteEntry] {
+        let inBox = notes.filter { $0.location == box && !(box == .inbox && $0.pinned) }
+        if box == .trash {
+            return inBox.sorted { ($0.trashedAt ?? .distantPast) > ($1.trashedAt ?? .distantPast) }
+        }
+        return inBox.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
     }
 
-    var ordered: [NoteEntry] { pinnedNotes + recentNotes }
+    var visible: [NoteEntry] { pinnedNotes + listNotes }
 
     var active: NoteEntry? { notes.first { $0.id == activeID } }
+
+    func count(in box: NoteBox) -> Int { notes.filter { $0.location == box }.count }
+
+    func url(for note: NoteEntry) -> URL { dirs[note.location]!.appendingPathComponent(note.fileName) }
 
     func matches(_ note: NoteEntry, query: String) -> Bool {
         let query = query.trimmingCharacters(in: .whitespaces)
@@ -85,13 +144,17 @@ final class NoteStore: ObservableObject {
         return note.title.range(of: query, options: options) != nil || body.range(of: query, options: options) != nil
     }
 
-    func url(for note: NoteEntry) -> URL { notesDir.appendingPathComponent(note.fileName) }
+    func show(_ newBox: NoteBox) {
+        guard newBox != box else { return }
+        box = newBox
+        select(visible.first?.id)
+    }
 
     // MARK: Editing
 
     func select(_ id: UUID?) {
-        flushNow()
         if let id, id == activeID { return }
+        flushNow()
         guard let id, let i = notes.firstIndex(where: { $0.id == id }) else {
             activeID = nil
             text = ""
@@ -104,24 +167,19 @@ final class NoteStore: ObservableObject {
         textVersion += 1
         UserDefaults.standard.set(id.uuidString, forKey: Prefs.activeNote)
         saveIndex()
+        watchActiveFile()
         NotificationCenter.default.post(name: .focusEditor, object: nil)
     }
 
     /// Called by the editor on every keystroke.
     func editorChanged(_ newText: String) {
-        guard activeID != nil, newText != text else { return }
+        guard let note = active, note.location != .trash, newText != text else { return }
         text = newText
         dirty = true
         pendingFlush?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.flushNow() }
         pendingFlush = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.autosaveDelay, execute: work)
-    }
-
-    /// Replaces the text from outside the editor, e.g. Replace All.
-    func replaceText(_ newText: String) {
-        editorChanged(newText)
-        textVersion += 1
     }
 
     func flushNow() {
@@ -132,6 +190,8 @@ final class NoteStore: ObservableObject {
         lastSelfWrite = Date()
         do {
             try text.write(to: url(for: note), atomically: true, encoding: .utf8)
+            // An atomic write replaces the file, so watch the new one.
+            watchActiveFile()
             previews[note.id] = Self.preview(of: text)
             contents[note.id] = text
             modified[note.id] = Date()
@@ -151,13 +211,16 @@ final class NoteStore: ObservableObject {
 
     // MARK: Notes
 
+    /// New notes always go to the inbox, which the sidebar switches to.
     @discardableResult
     func newNote(content: String = "", name: String? = nil) -> UUID {
         flushNow()
-        let fileName = uniqueFileName(base: name ?? "untitled")
+        box = .inbox
+        let fileName = uniqueFileName(base: name ?? "untitled", in: .inbox)
         lastSelfWrite = Date()
-        try? content.write(to: notesDir.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
-        let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil, lastOpened: Date(), createdAt: Date())
+        try? content.write(to: dirs[.inbox]!.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
+        let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
+                              lastOpened: Date(), createdAt: Date(), box: .inbox)
         notes.append(entry)
         previews[entry.id] = Self.preview(of: content)
         contents[entry.id] = content
@@ -172,12 +235,13 @@ final class NoteStore: ObservableObject {
         let clean = Self.sanitize(newTitle)
         guard clean != notes[i].title else { return }
         if id == activeID { flushNow() }
-        let target = uniqueFileName(base: clean)
+        let target = uniqueFileName(base: clean, in: notes[i].location)
         lastSelfWrite = Date()
         do {
-            try FileManager.default.moveItem(at: url(for: notes[i]), to: notesDir.appendingPathComponent(target))
+            try FileManager.default.moveItem(at: url(for: notes[i]), to: dirs[notes[i].location]!.appendingPathComponent(target))
             notes[i].fileName = target
             saveIndex()
+            if id == activeID { watchActiveFile() }
         } catch {
             NSSound.beep()
         }
@@ -190,29 +254,77 @@ final class NoteStore: ObservableObject {
         saveIndex()
     }
 
-    /// Moves the file to the Finder Trash, so it can still be recovered.
-    func trash(_ id: UUID) {
-        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
-        if id == activeID { flushNow() }
+    func archive(_ id: UUID) { move(id, to: .archive) }
+
+    /// Back to the inbox from the Archive or the Trash.
+    func restore(_ id: UUID) { move(id, to: .inbox) }
+
+    func trash(_ id: UUID) { move(id, to: .trash) }
+
+    /// Removes a trashed note for good.
+    func deletePermanently(_ id: UUID) {
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].location == .trash else { return }
         lastSelfWrite = Date()
-        do {
-            try FileManager.default.trashItem(at: url(for: notes[i]), resultingItemURL: nil)
-        } catch {
-            NSSound.beep()
-            return
-        }
-        notes.remove(at: i)
-        previews[id] = nil
-        saveIndex()
-        if id == activeID {
-            activeID = nil
-            select(ordered.first?.id)
+        try? FileManager.default.removeItem(at: url(for: notes[i]))
+        forget(id)
+    }
+
+    func emptyTrash() {
+        for note in notes where note.location == .trash {
+            lastSelfWrite = Date()
+            try? FileManager.default.removeItem(at: url(for: note))
+            forget(note.id)
         }
     }
 
     func reveal(_ id: UUID) {
         guard let note = notes.first(where: { $0.id == id }) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url(for: note)])
+    }
+
+    private func move(_ id: UUID, to destination: NoteBox) {
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].location != destination else { return }
+        let listBefore = visible.map(\.id)
+        if id == activeID { flushNow() }
+        let target = uniqueFileName(base: notes[i].title, in: destination)
+        lastSelfWrite = Date()
+        do {
+            try FileManager.default.moveItem(at: url(for: notes[i]), to: dirs[destination]!.appendingPathComponent(target))
+        } catch {
+            NSSound.beep()
+            return
+        }
+        notes[i].fileName = target
+        notes[i].box = destination
+        notes[i].trashedAt = destination == .trash ? Date() : nil
+        if destination != .inbox {
+            notes[i].pinned = false
+            notes[i].pinnedAt = nil
+        }
+        saveIndex()
+        if id == activeID { selectNeighbour(of: id, in: listBefore) }
+    }
+
+    private func forget(_ id: UUID) {
+        let wasActive = id == activeID
+        let listBefore = visible.map(\.id)
+        notes.removeAll { $0.id == id }
+        previews[id] = nil
+        contents[id] = nil
+        modified[id] = nil
+        saveIndex()
+        if wasActive { selectNeighbour(of: id, in: listBefore) }
+    }
+
+    /// After the open note leaves the list, open the one that took its place.
+    private func selectNeighbour(of id: UUID, in listBefore: [UUID]) {
+        activeID = nil
+        let rest = listBefore.filter { $0 != id && visible.map(\.id).contains($0) }
+        guard let index = listBefore.firstIndex(of: id), !rest.isEmpty else {
+            select(visible.first?.id)
+            return
+        }
+        select(rest[min(index, rest.count - 1)])
     }
 
     // MARK: Import and export
@@ -250,7 +362,7 @@ final class NoteStore: ObservableObject {
         do { try text.write(to: dest, atomically: true, encoding: .utf8) } catch { NSSound.beep() }
     }
 
-    // MARK: Index and folder
+    // MARK: Index and folders
 
     private func loadIndex() {
         guard let data = try? Data(contentsOf: indexURL),
@@ -263,33 +375,37 @@ final class NoteStore: ObservableObject {
         try? data.write(to: indexURL, options: .atomic)
     }
 
-    /// Brings the index in line with the .txt files actually in the folder.
+    /// Brings the index in line with the .txt files actually in each folder.
     private func reconcile() {
-        let fm = FileManager.default
-        let files = (try? fm.contentsOfDirectory(at: notesDir, includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey]))?
-            .filter { $0.pathExtension.lowercased() == "txt" } ?? []
-        let names = Set(files.map(\.lastPathComponent))
-        notes.removeAll { !names.contains($0.fileName) }
-        let known = Set(notes.map(\.fileName))
-        for file in files where !known.contains(file.lastPathComponent) {
-            let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
-            notes.append(NoteEntry(id: UUID(), fileName: file.lastPathComponent, pinned: false, pinnedAt: nil,
-                                   lastOpened: values?.contentModificationDate ?? Date(), createdAt: values?.creationDate ?? Date()))
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .creationDateKey]
+        var onDisk: [NoteBox: [URL]] = [:]
+        for box in NoteBox.allCases {
+            onDisk[box] = (try? FileManager.default.contentsOfDirectory(at: dirs[box]!, includingPropertiesForKeys: keys))?
+                .filter { $0.pathExtension.lowercased() == "txt" } ?? []
         }
-        // Entries saved before creation dates were tracked take the file's.
-        for i in notes.indices where notes[i].createdAt == nil {
-            let file = url(for: notes[i])
-            notes[i].createdAt = (try? file.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? notes[i].lastOpened
+        notes.removeAll { note in !(onDisk[note.location] ?? []).contains { $0.lastPathComponent == note.fileName } }
+        for (box, files) in onDisk {
+            let known = Set(notes.filter { $0.location == box }.map(\.fileName))
+            for file in files where !known.contains(file.lastPathComponent) {
+                let values = try? file.resourceValues(forKeys: Set(keys))
+                notes.append(NoteEntry(id: UUID(), fileName: file.lastPathComponent, pinned: false, pinnedAt: nil,
+                                       lastOpened: values?.contentModificationDate ?? Date(),
+                                       createdAt: values?.creationDate ?? Date(), box: box,
+                                       trashedAt: box == .trash ? Date() : nil))
+            }
         }
         var freshPreviews: [UUID: String] = [:]
         var freshContents: [UUID: String] = [:]
         var freshModified: [UUID: Date] = [:]
-        for note in notes {
-            let file = url(for: note)
+        for i in notes.indices {
+            let file = url(for: notes[i])
+            let values = try? file.resourceValues(forKeys: Set(keys))
+            // Entries saved before creation dates were tracked take the file's.
+            if notes[i].createdAt == nil { notes[i].createdAt = values?.creationDate ?? notes[i].lastOpened }
             let body = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-            freshPreviews[note.id] = Self.preview(of: body)
-            freshContents[note.id] = body
-            freshModified[note.id] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            freshPreviews[notes[i].id] = Self.preview(of: body)
+            freshContents[notes[i].id] = body
+            freshModified[notes[i].id] = values?.contentModificationDate
         }
         previews = freshPreviews
         contents = freshContents
@@ -298,13 +414,29 @@ final class NoteStore: ObservableObject {
     }
 
     private func startWatching() {
-        let fd = open(notesDir.path, O_EVTONLY)
+        for dir in dirs.values {
+            let fd = open(dir.path, O_EVTONLY)
+            guard fd >= 0 else { continue }
+            let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
+            source.setEventHandler { [weak self] in self?.folderChanged() }
+            source.setCancelHandler { close(fd) }
+            source.resume()
+            watchers.append(source)
+        }
+    }
+
+    private func watchActiveFile() {
+        fileWatcher?.cancel()
+        fileWatcher = nil
+        guard let note = active else { return }
+        let fd = open(url(for: note).path, O_EVTONLY)
         guard fd >= 0 else { return }
-        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .extend, .delete, .rename], queue: .main)
         source.setEventHandler { [weak self] in self?.folderChanged() }
         source.setCancelHandler { close(fd) }
         source.resume()
-        watcher = source
+        fileWatcher = source
     }
 
     private func folderChanged() {
@@ -318,8 +450,10 @@ final class NoteStore: ObservableObject {
         // Ignore the echo of our own writes.
         guard Date().timeIntervalSince(lastSelfWrite) > 1 else { return }
         reconcile()
+        // Editors that save atomically replace the file we were watching.
+        watchActiveFile()
         if active == nil {
-            select(ordered.first?.id)
+            select(visible.first?.id)
         } else if let note = active, !dirty,
                   let disk = try? String(contentsOf: url(for: note), encoding: .utf8), disk != text {
             text = disk
@@ -329,11 +463,12 @@ final class NoteStore: ObservableObject {
 
     // MARK: Helpers
 
-    private func uniqueFileName(base: String) -> String {
+    private func uniqueFileName(base: String, in box: NoteBox) -> String {
         let clean = Self.sanitize(base)
+        let dir = dirs[box]!
         var candidate = "\(clean).txt"
         var n = 1
-        while FileManager.default.fileExists(atPath: notesDir.appendingPathComponent(candidate).path) {
+        while FileManager.default.fileExists(atPath: dir.appendingPathComponent(candidate).path) {
             n += 1
             candidate = "\(clean) \(n).txt"
         }
@@ -368,7 +503,7 @@ enum Starters {
 
     Paste anything and only the words arrive. Bold, colors and fonts stay behind. That's on purpose: it's a scrap of paper, not a layout tool.
 
-    Right-click a note in the sidebar to pin it, rename it, share it or move it to the Trash. Drop a file on the window and it becomes a note.
+    Hover a note in the sidebar and click the pencil to rename it. Right-click to pin, archive or move it to the Trash; trashed notes wait in the Trash until you empty it. Drop a file on the window and it becomes a note.
 
     Crumple this one up whenever you like.
     """
@@ -380,6 +515,8 @@ enum Starters {
     ⌘F  find in the note
     ⌥⌘F  find and replace
     ⌘G  ⇧⌘G  next and previous match
+    ⌘1  ⌘2  ⌘3  Inbox, Archive, Trash
+    ⇧⌘F  focus mode: just you and the text
     ⌃⌘S  show or hide the sidebar
     ⌥⌘T  float on top of other windows
     ⌘=  ⌘-  ⌘0  text size

@@ -10,6 +10,10 @@ struct MainView: View {
     @AppStorage(Prefs.spellCheck) private var spellCheck = false
     @AppStorage(Prefs.ruled) private var ruled = false
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
+    @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
+    @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
+    /// Hides everything around the text except the button that ends it.
+    @AppStorage(Prefs.focusMode) private var focusMode = false
     @StateObject private var selectionState = ViewState(SelectionStats())
     @StateObject private var toastState = ViewState<String?>(nil)
     @StateObject private var toastTask = ViewState<DispatchWorkItem?>(nil)
@@ -17,6 +21,15 @@ struct MainView: View {
     @StateObject private var columns = ViewState(NavigationSplitViewVisibility.all)
 
     private var appearance: AppearanceChoice { AppearanceChoice(rawValue: appearanceRaw) ?? .system }
+    private var iconStyle: IconStyle { IconStyle(rawValue: iconStyleRaw) ?? .blue }
+    private var theme: EditorTheme { EditorTheme.named(themeID) }
+
+    /// An explicit appearance wins; otherwise a light or dark theme sets the window's look.
+    private var colorScheme: ColorScheme? {
+        if let forced = appearance.scheme { return forced }
+        return theme.isDark.map { $0 ? .dark : .light }
+    }
+    private var isTrashed: Bool { store.active?.location == .trash }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns.value) {
@@ -26,8 +39,12 @@ struct MainView: View {
             detail
         }
         .searchable(text: $searchState.value, placement: .sidebar, prompt: "Search")
-        .tint(Brand.red)
-        .preferredColorScheme(appearance.scheme)
+        .toolbar(removing: focusMode ? .sidebarToggle : nil)
+        .onChange(of: focusMode, initial: true) {
+            withAnimation(.smooth(duration: 0.3)) { columns.value = focusMode ? .detailOnly : .all }
+        }
+        .tint(iconStyle.accent)
+        .preferredColorScheme(colorScheme)
         .background(WindowConfigurator(floatOnTop: floatOnTop))
         .onDrop(of: [.fileURL], isTargeted: nil, perform: importDrop)
         .onAppear {
@@ -58,34 +75,73 @@ struct MainView: View {
                     font: FontChoice.font(fontName, size: fontSize),
                     spellCheck: spellCheck,
                     ruled: ruled,
+                    editable: !isTrashed,
+                    theme: theme,
+                    accent: iconStyle.accentNS,
                     selection: $selectionState.value,
                     onRichPaste: { showToast("Formatting Removed") }
                 )
-                .overlay(alignment: .bottom) { statusCapsule }
+                .overlay(alignment: .bottom) {
+                    if !focusMode {
+                        if isTrashed { trashBanner } else { statusCapsule }
+                    }
+                }
             }
         }
         .overlay(alignment: .top) { toast }
         .navigationTitle(store.active?.title ?? "Rubbish Notes")
-        .navigationSubtitle(subtitle)
-        .toolbar { detailToolbar }
+        .navigationSubtitle(focusMode ? "" : subtitle)
+        .toolbar {
+            if !focusMode { detailToolbar }
+            ToolbarItem(placement: .primaryAction) { focusButton }
+        }
         .animation(.smooth(duration: 0.25), value: toastState.value)
     }
 
     private var subtitle: String {
-        guard store.activeID != nil else { return "" }
-        return store.justSaved ? "Saved" : "Plain Text"
+        guard let note = store.active else { return "" }
+        switch note.location {
+        case .trash: return "In the Trash"
+        case .archive: return store.justSaved ? "Saved" : "Archived"
+        case .inbox: return store.justSaved ? "Saved" : "Plain Text"
+        }
     }
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
-        if let note = store.active {
+        if let note = store.active, note.location == .trash {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
-                    store.togglePin(note.id)
+                    store.restore(note.id)
                 } label: {
-                    Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin")
+                    Label("Restore", systemImage: "arrow.uturn.backward")
                 }
-                .help(note.pinned ? "Unpin Note" : "Pin Note")
+                .help("Restore to Inbox")
+                Button(role: .destructive) {
+                    store.deletePermanently(note.id)
+                } label: {
+                    Label("Delete Permanently", systemImage: "trash.slash")
+                }
+                .help("Delete Permanently")
+            }
+        } else if let note = store.active {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if note.location == .inbox {
+                    Button {
+                        store.togglePin(note.id)
+                    } label: {
+                        Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin")
+                    }
+                    .help(note.pinned ? "Unpin Note" : "Pin Note")
+                }
+
+                Button {
+                    note.location == .archive ? store.restore(note.id) : store.archive(note.id)
+                } label: {
+                    Label(note.location == .archive ? "Move to Inbox" : "Archive",
+                          systemImage: note.location == .archive ? "tray.and.arrow.up" : "archivebox")
+                }
+                .help(note.location == .archive ? "Move to Inbox" : "Archive Note")
 
                 ShareLink(item: store.url(for: note)) {
                     Label("Share", systemImage: "square.and.arrow.up")
@@ -113,6 +169,7 @@ struct MainView: View {
                     Label("Text Size", systemImage: "textformat.size")
                 }
                 .help("Text Size")
+                .accessibilityLabel("Text Size")
 
                 Menu {
                     Toggle("Float on Top", systemImage: "macwindow.on.rectangle", isOn: $floatOnTop)
@@ -127,11 +184,39 @@ struct MainView: View {
                     Label("More", systemImage: "ellipsis")
                 }
                 .help("More")
+                .accessibilityLabel("More")
             }
         }
     }
 
+    private var focusButton: some View {
+        Button {
+            withAnimation(.smooth(duration: 0.3)) { focusMode.toggle() }
+        } label: {
+            Label(focusMode ? "Exit Focus Mode" : "Focus Mode", systemImage: focusMode ? "bolt.fill" : "bolt")
+        }
+        .buttonStyle(FocusButtonStyle(active: focusMode))
+        .help(focusMode ? "Exit Focus Mode (⇧⌘F)" : "Focus Mode (⇧⌘F)")
+    }
+
     // MARK: Glass overlays
+
+    private var trashBanner: some View {
+        HStack(spacing: 12) {
+            Label("This note is in the Trash.", systemImage: "trash")
+                .foregroundStyle(.secondary)
+            Button("Restore") {
+                if let id = store.activeID { store.restore(id) }
+            }
+            .buttonStyle(.glassProminent)
+        }
+        .font(.callout)
+        .padding(.leading, 16)
+        .padding(.trailing, 6)
+        .padding(.vertical, 6)
+        .glassEffect(.regular, in: .capsule)
+        .padding(.bottom, 14)
+    }
 
     private var statusCapsule: some View {
         let selection = selectionState.value
@@ -144,7 +229,7 @@ struct MainView: View {
             Text("·").foregroundStyle(.tertiary)
             Text("\(characters) \(characters == 1 ? "character" : "characters")")
             if hasSelection {
-                Text("selected").foregroundStyle(Brand.red)
+                Text("selected").foregroundStyle(iconStyle.accent)
             } else if words > 0 {
                 Text("·").foregroundStyle(.tertiary)
                 Text("\(minutes) min read")
@@ -215,5 +300,19 @@ struct WindowConfigurator: NSViewRepresentable {
         guard let window else { return }
         window.level = floatOnTop ? .floating : .normal
         window.tabbingMode = .disallowed
+    }
+}
+
+/// The focus toggle shows the accent-filled glass while focus mode is on.
+private struct FocusButtonStyle: PrimitiveButtonStyle {
+    let active: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if active {
+            Button(role: configuration.role, action: configuration.trigger) { configuration.label }
+                .buttonStyle(.glassProminent)
+        } else {
+            Button(role: configuration.role, action: configuration.trigger) { configuration.label }
+        }
     }
 }
