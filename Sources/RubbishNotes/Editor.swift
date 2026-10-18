@@ -16,21 +16,29 @@ enum Counting {
     }
 }
 
-/// Plain-text NSTextView drawn as a ruled sheet: blue rules on a fixed line
-/// height and a red margin line to the left of the text column.
+/// Plain-text NSTextView using system colors and the system find bar.
+/// Optionally drawn as a ruled sheet, with a red margin line from the logo.
 final class EditorTextView: NSTextView {
     var onRichPaste: (() -> Void)?
-    var ruled = true
+    var ruled = false
     var lineHeight: CGFloat = 26
-    var ruleColor = NSColor.clear
-    var marginColor = NSColor.clear
-    let maxColumnWidth: CGFloat = 680
+    let maxColumnWidth: CGFloat = 700
+
+    /// Start with the cursor in the note, not in the sidebar list.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self, weak window] in
+            guard let self, let window, !(window.firstResponder is NSText) else { return }
+            window.makeFirstResponder(self)
+        }
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        let horizontal = max(44, floor((newSize.width - maxColumnWidth) / 2))
+        let horizontal = max(36, floor((newSize.width - maxColumnWidth) / 2))
         if abs(textContainerInset.width - horizontal) > 0.5 {
-            textContainerInset = NSSize(width: horizontal, height: 34)
+            textContainerInset = NSSize(width: horizontal, height: 24)
         }
     }
 
@@ -38,15 +46,15 @@ final class EditorTextView: NSTextView {
         super.drawBackground(in: rect)
         guard ruled, lineHeight > 4 else { return }
         let top = textContainerOrigin.y
-        ruleColor.setFill()
+        NSColor.separatorColor.withAlphaComponent(0.55).setFill()
         let firstRule = max(1, floor((rect.minY - top) / lineHeight))
         var y = top + firstRule * lineHeight
         while y <= rect.maxY + lineHeight {
             NSRect(x: rect.minX, y: y - 0.5, width: rect.width, height: 1).fill()
             y += lineHeight
         }
-        marginColor.setFill()
-        NSRect(x: textContainerOrigin.x - 18, y: rect.minY, width: 1, height: rect.height).fill()
+        Brand.redNS.withAlphaComponent(0.35).setFill()
+        NSRect(x: textContainerOrigin.x - 16, y: rect.minY, width: 1, height: rect.height).fill()
     }
 
     // Only words come in: formatting from rich pastes is dropped.
@@ -76,13 +84,9 @@ struct EditorView: NSViewRepresentable {
     let text: String
     let textVersion: Int
     let noteID: UUID?
-    let palette: Palette
     let font: NSFont
     let spellCheck: Bool
     let ruled: Bool
-    let matches: [NSRange]
-    let activeMatch: Int
-    let showMatches: Bool
     @Binding var selection: SelectionStats
     var onRichPaste: () -> Void
 
@@ -90,7 +94,8 @@ struct EditorView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
-        scroll.drawsBackground = false
+        scroll.drawsBackground = true
+        scroll.backgroundColor = .textBackgroundColor
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         scroll.borderType = .noBorder
@@ -99,8 +104,11 @@ struct EditorView: NSViewRepresentable {
         textView.isRichText = false
         textView.importsGraphics = false
         textView.allowsUndo = true
-        textView.usesFindBar = false
+        textView.usesFindBar = true
+        textView.isIncrementalSearchingEnabled = true
         textView.drawsBackground = false
+        textView.textColor = .textColor
+        textView.insertionPointColor = Brand.redNS
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
@@ -119,6 +127,7 @@ struct EditorView: NSViewRepresentable {
         textView.onRichPaste = { [weak coordinator] in coordinator?.parent.onRichPaste() }
 
         scroll.documentView = textView
+        scroll.findBarPosition = .aboveContent
         coordinator.textView = textView
         coordinator.observeFocusRequests()
         return scroll
@@ -130,8 +139,8 @@ struct EditorView: NSViewRepresentable {
         guard let textView = c.textView else { return }
         textView.minSize = NSSize(width: 0, height: scroll.contentSize.height)
 
-        let lineHeight = ceil(font.pointSize * 1.75)
-        let styleKey = "\(font.fontName)|\(font.pointSize)|\(palette.id)|\(ruled)"
+        let lineHeight = ceil(font.pointSize * (ruled ? 1.75 : 1.45))
+        let styleKey = "\(font.fontName)|\(font.pointSize)|\(ruled)"
         if c.styleKey != styleKey {
             c.styleKey = styleKey
             let paragraph = NSMutableParagraphStyle()
@@ -139,16 +148,12 @@ struct EditorView: NSViewRepresentable {
             paragraph.maximumLineHeight = lineHeight
             c.attributes = [
                 .font: font,
-                .foregroundColor: palette.fg,
+                .foregroundColor: NSColor.textColor,
                 .paragraphStyle: paragraph,
-                .baselineOffset: max(0, lineHeight * 0.2 + font.descender),
+                .baselineOffset: ruled ? max(0, lineHeight * 0.2 + font.descender) : 0,
             ]
             textView.defaultParagraphStyle = paragraph
-            textView.insertionPointColor = palette.accent
-            textView.selectedTextAttributes = [.backgroundColor: palette.selection]
             textView.lineHeight = lineHeight
-            textView.ruleColor = palette.rule
-            textView.marginColor = palette.margin
             textView.ruled = ruled
             c.applyAttributes()
             textView.needsDisplay = true
@@ -172,13 +177,6 @@ struct EditorView: NSViewRepresentable {
                 textView.setSelectedRange(NSRange(location: 0, length: 0))
                 textView.scrollToBeginningOfDocument(nil)
             }
-            c.matchesKey = ""
-        }
-
-        let matchesKey = showMatches ? matches.map { "\($0.location):\($0.length)" }.joined(separator: ",") + "#\(activeMatch)" : ""
-        if c.matchesKey != matchesKey {
-            c.matchesKey = matchesKey
-            c.highlight(matches: showMatches ? matches : [], active: activeMatch)
         }
     }
 
@@ -187,7 +185,6 @@ struct EditorView: NSViewRepresentable {
         weak var textView: EditorTextView?
         var attributes: [NSAttributedString.Key: Any] = [:]
         var styleKey = ""
-        var matchesKey = ""
         var lastVersion = -1
         var lastNoteID: UUID?
         var syncing = false
@@ -212,19 +209,6 @@ struct EditorView: NSViewRepresentable {
             storage.beginEditing()
             storage.setAttributes(attributes, range: NSRange(location: 0, length: storage.length))
             storage.endEditing()
-        }
-
-        func highlight(matches: [NSRange], active: Int) {
-            guard let textView, let layout = textView.layoutManager else { return }
-            let length = (textView.string as NSString).length
-            layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: NSRange(location: 0, length: length))
-            for (i, range) in matches.enumerated() where NSMaxRange(range) <= length {
-                let color = i == active ? parent.palette.accent.withAlphaComponent(0.55) : parent.palette.accentSoft
-                layout.addTemporaryAttribute(.backgroundColor, value: color, forCharacterRange: range)
-            }
-            if matches.indices.contains(active), NSMaxRange(matches[active]) <= length {
-                textView.scrollRangeToVisible(matches[active])
-            }
         }
 
         func textDidChange(_ notification: Notification) {

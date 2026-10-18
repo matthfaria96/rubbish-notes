@@ -2,12 +2,11 @@ import AppKit
 import SwiftUI
 
 enum Prefs {
-    static let theme = "RubbishNotes.theme"
+    static let appearance = "RubbishNotes.appearance"
     static let fontName = "RubbishNotes.editor.fontName"
     static let fontSize = "RubbishNotes.editor.fontSize"
     static let spellCheck = "RubbishNotes.spellCheck"
-    static let ruled = "RubbishNotes.ruledPaper"
-    static let sidebarVisible = "RubbishNotes.sidebarVisible"
+    static let ruled = "RubbishNotes.ruledLines"
     static let floatOnTop = "RubbishNotes.floatOnTop"
     static let activeNote = "RubbishNotes.activeNoteID"
     static let didSeed = "RubbishNotes.didSeedStarters"
@@ -34,8 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct RubbishNotesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = NoteStore.shared
-    @StateObject private var find = FindState.shared
-    @AppStorage(Prefs.sidebarVisible) private var sidebarVisible = true
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
     @AppStorage(Prefs.fontSize) private var fontSize = Prefs.defaultFontSize
     @AppStorage(Prefs.fontName) private var fontName = FontChoice.defaultName
@@ -44,11 +41,14 @@ struct RubbishNotesApp: App {
         Window("Rubbish Notes", id: "main") {
             MainView()
                 .environmentObject(store)
-                .environmentObject(find)
         }
-        .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 900, height: 620)
+        .defaultSize(width: 960, height: 640)
+        .windowToolbarStyle(.unified)
         .commands {
+            SidebarCommands()
+            ToolbarCommands()
+            TextEditingCommands()
+
             CommandGroup(replacing: .newItem) {
                 Button("New Note") { store.newNote() }
                     .keyboardShortcut("n")
@@ -67,15 +67,8 @@ struct RubbishNotesApp: App {
                 .keyboardShortcut("p")
                 .disabled(store.activeID == nil)
             }
-            CommandGroup(after: .textEditing) {
-                Button("Find & Replace") { find.show() }
-                    .keyboardShortcut("f")
-            }
-            CommandGroup(replacing: .sidebar) {
-                Button(sidebarVisible ? "Hide Sidebar" : "Show Sidebar") {
-                    withAnimation(.easeOut(duration: 0.2)) { sidebarVisible.toggle() }
-                }
-                .keyboardShortcut("s", modifiers: [.command, .option])
+            CommandGroup(after: .sidebar) {
+                Divider()
                 Button(floatOnTop ? "Stop Floating on Top" : "Float on Top") { floatOnTop.toggle() }
                     .keyboardShortcut("t", modifiers: [.command, .option])
                 Divider()
@@ -83,13 +76,25 @@ struct RubbishNotesApp: App {
                     .keyboardShortcut("=")
                 Button("Smaller Text") { fontSize = max(fontSize - 1, 10) }
                     .keyboardShortcut("-")
-                Button("Reset Text Size") { fontSize = Prefs.defaultFontSize }
+                Button("Actual Size") { fontSize = Prefs.defaultFontSize }
                     .keyboardShortcut("0")
             }
         }
 
         Settings {
             SettingsView()
+        }
+    }
+}
+
+/// Drives the system find bar of the editor (NSTextFinder).
+enum TextFinder {
+    static func perform(_ action: NSTextFinder.Action) {
+        NotificationCenter.default.post(name: .focusEditor, object: nil)
+        DispatchQueue.main.async {
+            let sender = NSMenuItem()
+            sender.tag = action.rawValue
+            NSApp.sendAction(#selector(NSTextView.performTextFinderAction(_:)), to: nil, from: sender)
         }
     }
 }

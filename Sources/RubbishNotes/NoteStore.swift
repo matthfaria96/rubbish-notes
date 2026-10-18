@@ -24,6 +24,9 @@ final class NoteStore: ObservableObject {
     /// Bumps whenever `text` is replaced from outside the editor.
     @Published private(set) var textVersion = 0
     @Published private(set) var previews: [UUID: String] = [:]
+    @Published private(set) var modified: [UUID: Date] = [:]
+    /// Full text of every note, for sidebar search.
+    private var contents: [UUID: String] = [:]
     @Published private(set) var justSaved = false
 
     let notesDir: URL
@@ -71,12 +74,21 @@ final class NoteStore: ObservableObject {
 
     var active: NoteEntry? { notes.first { $0.id == activeID } }
 
+    func matches(_ note: NoteEntry, query: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return true }
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+        let body = note.id == activeID ? text : (contents[note.id] ?? "")
+        return note.title.range(of: query, options: options) != nil || body.range(of: query, options: options) != nil
+    }
+
     func url(for note: NoteEntry) -> URL { notesDir.appendingPathComponent(note.fileName) }
 
     // MARK: Editing
 
     func select(_ id: UUID?) {
         flushNow()
+        if let id, id == activeID { return }
         guard let id, let i = notes.firstIndex(where: { $0.id == id }) else {
             activeID = nil
             text = ""
@@ -118,6 +130,8 @@ final class NoteStore: ObservableObject {
         do {
             try text.write(to: url(for: note), atomically: true, encoding: .utf8)
             previews[note.id] = Self.preview(of: text)
+            contents[note.id] = text
+            modified[note.id] = Date()
             showSavedBadge()
         } catch {
             NSSound.beep()
@@ -143,6 +157,8 @@ final class NoteStore: ObservableObject {
         let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil, lastOpened: Date())
         notes.append(entry)
         previews[entry.id] = Self.preview(of: content)
+        contents[entry.id] = content
+        modified[entry.id] = Date()
         saveIndex()
         select(entry.id)
         return entry.id
@@ -256,11 +272,19 @@ final class NoteStore: ObservableObject {
             let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
             notes.append(NoteEntry(id: UUID(), fileName: file.lastPathComponent, pinned: false, pinnedAt: nil, lastOpened: modified))
         }
-        var fresh: [UUID: String] = [:]
+        var freshPreviews: [UUID: String] = [:]
+        var freshContents: [UUID: String] = [:]
+        var freshModified: [UUID: Date] = [:]
         for note in notes {
-            fresh[note.id] = Self.preview(of: (try? String(contentsOf: url(for: note), encoding: .utf8)) ?? "")
+            let file = url(for: note)
+            let body = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            freshPreviews[note.id] = Self.preview(of: body)
+            freshContents[note.id] = body
+            freshModified[note.id] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         }
-        previews = fresh
+        previews = freshPreviews
+        contents = freshContents
+        modified = freshModified
         saveIndex()
     }
 
@@ -344,12 +368,14 @@ enum Starters {
     ⌘N  new note
     ⌘O  open a file as a note
     ⇧⌘S  save a copy somewhere else
-    ⌘F  find & replace (Return next, ⇧Return previous, Esc close)
-    ⌥⌘S  show or hide the sidebar
+    ⌘F  find in the note
+    ⌥⌘F  find and replace
+    ⌘G  ⇧⌘G  next and previous match
+    ⌃⌘S  show or hide the sidebar
     ⌥⌘T  float on top of other windows
     ⌘=  ⌘-  ⌘0  text size
     ⌘P  print
-    ⌘,  settings and themes
+    ⌘,  settings
 
     That's all of them.
     """

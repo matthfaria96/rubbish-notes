@@ -33,7 +33,7 @@ func render(pixels: Int) -> Data {
     shadow.shadowBlurRadius = 18 * scale
     shadow.shadowOffset = NSSize(width: 0, height: -8 * scale)
     shadow.set()
-    NSColor(srgbRed: 0.93, green: 0.66, blue: 0.08, alpha: 1).setFill()
+    NSColor(srgbRed: 0.93, green: 0.05, blue: 0.05, alpha: 1).setFill()
     shape.fill()
     NSGraphicsContext.restoreGraphicsState()
 

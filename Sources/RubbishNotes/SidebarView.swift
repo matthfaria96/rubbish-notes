@@ -3,61 +3,55 @@ import SwiftUI
 
 struct SidebarView: View {
     @EnvironmentObject private var store: NoteStore
-    let palette: Palette
+    let query: String
     @StateObject private var renaming = ViewState<UUID?>(nil)
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                if !store.pinnedNotes.isEmpty {
-                    header("PINNED", showsAdd: false)
-                    ForEach(store.pinnedNotes) { row($0) }
-                    Spacer().frame(height: 14)
+        let pinned = store.pinnedNotes.filter { store.matches($0, query: query) }
+        let recents = store.recentNotes.filter { store.matches($0, query: query) }
+        List(selection: selection) {
+            if !pinned.isEmpty {
+                Section("Pinned") {
+                    ForEach(pinned) { row($0) }
                 }
-                header("RECENTS", showsAdd: true)
-                ForEach(store.recentNotes) { row($0) }
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 4)
-            .padding(.bottom, 16)
+            Section(query.isEmpty ? "Notes" : "Results") {
+                ForEach(recents) { row($0) }
+            }
         }
-        .scrollIndicators(.never)
-    }
-
-    private func header(_ title: String, showsAdd: Bool) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                .tracking(1.3)
-                .foregroundStyle(palette.faintC)
-            Spacer()
-            if showsAdd {
+        .listStyle(.sidebar)
+        .overlay {
+            if !query.isEmpty && pinned.isEmpty && recents.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .onDeleteCommand {
+            if let id = store.activeID { store.trash(id) }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     store.newNote()
                 } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
+                    Label("New Note", systemImage: "square.and.pencil")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(palette.mutedC)
-                .help("New note (⌘N)")
+                .help("New Note (⌘N)")
             }
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 4)
-        .frame(height: 26)
+    }
+
+    private var selection: Binding<UUID?> {
+        Binding(get: { store.activeID }, set: { store.select($0) })
     }
 
     private func row(_ note: NoteEntry) -> some View {
         NoteRow(
             note: note,
             preview: store.previews[note.id] ?? "",
-            isActive: note.id == store.activeID,
-            palette: palette,
+            modified: store.modified[note.id],
             renamingID: $renaming.value
         )
+        .tag(note.id)
     }
 }
 
@@ -65,86 +59,70 @@ struct NoteRow: View {
     @EnvironmentObject private var store: NoteStore
     let note: NoteEntry
     let preview: String
-    let isActive: Bool
-    let palette: Palette
+    let modified: Date?
     @Binding var renamingID: UUID?
-    @StateObject private var hoverState = ViewState(false)
     @StateObject private var draftState = ViewState("")
-
-    private var hovering: Bool { hoverState.value }
     @FocusState private var nameFocused: Bool
 
     private var isRenaming: Bool { renamingID == note.id }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            VStack(alignment: .leading, spacing: 2) {
-                if isRenaming {
-                    TextField("Name", text: $draftState.value)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(palette.fgC)
-                        .focused($nameFocused)
-                        .onSubmit(commitRename)
-                        .onExitCommand { renamingID = nil }
-                        .onAppear {
-                            draftState.value = note.title
-                            nameFocused = true
-                        }
-                        .onChange(of: nameFocused) { if !nameFocused, isRenaming { commitRename() } }
-                } else {
-                    Text(note.title)
-                        .font(.system(size: 13, weight: isActive ? .semibold : .regular))
-                        .foregroundStyle(isActive ? palette.fgC : palette.fg2C)
-                        .lineLimit(1)
-                }
-                Text(preview.isEmpty ? " " : preview)
-                    .font(.system(size: 11))
-                    .foregroundStyle(palette.mutedC)
+        VStack(alignment: .leading, spacing: 2) {
+            if isRenaming {
+                TextField("Name", text: $draftState.value)
+                    .textFieldStyle(.plain)
+                    .font(.body.weight(.semibold))
+                    .focused($nameFocused)
+                    .onSubmit(commitRename)
+                    .onExitCommand { renamingID = nil }
+                    .onAppear {
+                        draftState.value = note.title
+                        DispatchQueue.main.async { nameFocused = true }
+                    }
+                    .onChange(of: nameFocused) { if !nameFocused, isRenaming { commitRename() } }
+            } else {
+                Text(note.title)
+                    .font(.body.weight(.semibold))
                     .lineLimit(1)
             }
-            Spacer(minLength: 0)
-            if note.pinned {
-                Button {
-                    store.togglePin(note.id)
-                } label: {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10))
-                        .rotationEffect(.degrees(30))
+            HStack(spacing: 6) {
+                if let modified {
+                    Text(Self.dateLabel(modified))
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(palette.accentC)
-                .help("Unpin")
-                .padding(.top, 2)
+                Text(preview.isEmpty ? "No additional text" : preview)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .font(.subheadline)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isActive ? palette.panel2C : (hovering ? palette.panel2C.opacity(0.45) : .clear))
-        )
-        .contentShape(Rectangle())
-        .onHover { hoverState.value = $0 }
-        .onTapGesture {
-            // A click on the open note renames it.
-            if isActive { renamingID = note.id } else { store.select(note.id) }
-        }
+        .padding(.vertical, 3)
         .contextMenu {
-            Button(note.pinned ? "Unpin" : "Pin") { store.togglePin(note.id) }
-            Button("Rename") {
+            Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+                store.togglePin(note.id)
+            }
+            Button("Rename", systemImage: "pencil") {
                 store.select(note.id)
                 renamingID = note.id
             }
-            ShareLink(item: store.url(for: note)) { Text("Share…") }
-            Button("Reveal in Finder") { store.reveal(note.id) }
+            ShareLink(item: store.url(for: note)) {
+                Label("Share…", systemImage: "square.and.arrow.up")
+            }
+            Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
             Divider()
-            Button("Move to Trash") { store.trash(note.id) }
+            Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
+        }
+        .swipeActions(edge: .leading) {
+            Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+                store.togglePin(note.id)
+            }
+            .tint(.orange)
+        }
+        .swipeActions(edge: .trailing) {
+            Button("Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
         }
         .onDrag {
             NSItemProvider(contentsOf: store.url(for: note)) ?? NSItemProvider()
         }
-        .help(note.fileName)
     }
 
     private func commitRename() {
@@ -152,5 +130,16 @@ struct NoteRow: View {
         store.rename(note.id, to: draftState.value)
         renamingID = nil
         NotificationCenter.default.post(name: .focusEditor, object: nil)
+    }
+
+    /// Notes-style dates: time today, "Yesterday", weekday this week, else a short date.
+    static func dateLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if let days = calendar.dateComponents([.day], from: date, to: Date()).day, days < 7 {
+            return date.formatted(.dateTime.weekday(.wide))
+        }
+        return date.formatted(date: .numeric, time: .omitted)
     }
 }
