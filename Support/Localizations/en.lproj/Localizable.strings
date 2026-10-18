@@ -61,6 +61,10 @@
 "Delete every note in the Trash permanently" = "Delete every note in the Trash permanently";
 "1 note will be deleted permanently. You can’t undo this." = "1 note will be deleted permanently. You can’t undo this.";
 "%ld notes will be deleted permanently. You can’t undo this." = "%ld notes will be deleted permanently. You can’t undo this.";
+"Undo" = "Undo";
+"Moved to Trash" = "Moved to Trash";
+"Note archived" = "Note archived";
+"Moved to Inbox" = "Moved to Inbox";
 "No Note" = "No Note";
 "Create a note or drop a text file here." = "Create a note or drop a text file here.";
 "Formatting Removed" = "Formatting Removed";

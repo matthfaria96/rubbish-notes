@@ -22,6 +22,8 @@ The app runs in the App Sandbox, so everything lives in its container, `~/Librar
 
 Notes from before the sandbox (in `~/Library/Application Support/Rubbish Notes/`) are moved into the container by macOS on the first sandboxed launch, as listed in `Support/container-migration.plist`.
 
+New notes take their first line as their title until you rename them. Archiving, trashing and restoring can be undone with ⌘Z or the Undo button in the notice that follows.
+
 Trashed notes can be restored until you choose Empty Trash, which deletes them permanently after a confirmation. Edits made to the files in other apps show up in Rubbish Notes, including in-place edits to the open note.
 
 ## Security
@@ -37,7 +39,7 @@ Native macOS 26+ look: a `NavigationSplitView` with the system glass sidebar and
 
 ## Languages
 
-English, Portuguese, Spanish, French, German and Italian, in `Support/Localizations/<lang>.lproj/Localizable.strings`. By default the app follows the Mac's language; Settings › General › Language overrides it for this app and offers to restart, since macOS applies an app's language at launch. The welcome note is written in the app's language.
+English, Portuguese, Spanish, French, German and Italian, in `Support/Localizations/<lang>.lproj/Localizable.strings`, generated from one table by `python3 scripts/make-strings.py Support/Localizations`. By default the app follows the Mac's language; Settings › General › Language overrides it for this app and offers to restart, since macOS applies an app's language at launch. The welcome note is written in the app's language.
 
 ## Themes and focus
 
@@ -71,6 +73,7 @@ Focus Mode (the bolt in the toolbar, ⇧⌘F) hides the sidebar, the Inbox/Archi
 | `MainView.swift` | Split view, toolbar, glass status capsule and notices |
 | `SidebarView.swift` | Notes list per box, hover rename button, context menus, swipe actions, box switcher, Empty Trash |
 | `SettingsView.swift` | General (appearance, app icon), Editor and Themes tabs |
+| `Localization.swift` | `L()` lookups and the in-app language choice |
 | `Theme.swift` | Icon styles and accent, appearance choices, font choices |
 | `EditorTheme.swift` | Editor color themes and the theme preview |
 

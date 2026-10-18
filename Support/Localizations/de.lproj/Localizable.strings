@@ -61,6 +61,10 @@
 "Delete every note in the Trash permanently" = "Alle Notizen im Papierkorb endgültig löschen";
 "1 note will be deleted permanently. You can’t undo this." = "1 Notiz wird endgültig gelöscht. Dies kann nicht widerrufen werden.";
 "%ld notes will be deleted permanently. You can’t undo this." = "%ld Notizen werden endgültig gelöscht. Dies kann nicht widerrufen werden.";
+"Undo" = "Widerrufen";
+"Moved to Trash" = "In den Papierkorb gelegt";
+"Note archived" = "Notiz archiviert";
+"Moved to Inbox" = "In Eingang bewegt";
 "No Note" = "Keine Notiz";
 "Create a note or drop a text file here." = "Erstelle eine Notiz oder lege hier eine Textdatei ab.";
 "Formatting Removed" = "Formatierung entfernt";

@@ -61,6 +61,10 @@
 "Delete every note in the Trash permanently" = "Supprimer définitivement toutes les notes de la corbeille";
 "1 note will be deleted permanently. You can’t undo this." = "1 note sera supprimée définitivement. Cette action est irréversible.";
 "%ld notes will be deleted permanently. You can’t undo this." = "%ld notes seront supprimées définitivement. Cette action est irréversible.";
+"Undo" = "Annuler";
+"Moved to Trash" = "Placée dans la corbeille";
+"Note archived" = "Note archivée";
+"Moved to Inbox" = "Déplacée vers Réception";
 "No Note" = "Aucune note";
 "Create a note or drop a text file here." = "Créez une note ou déposez un fichier texte ici.";
 "Formatting Removed" = "Mise en forme supprimée";

@@ -52,6 +52,8 @@ struct NoteEntry: Codable, Identifiable, Equatable {
     /// nil in indexes written before boxes existed, meaning the inbox.
     var box: NoteBox?
     var trashedAt: Date?
+    /// Created without a name: the title follows the note's first line.
+    var autoNamed: Bool?
 
     var title: String { (fileName as NSString).deletingPathExtension }
     var location: NoteBox { box ?? .inbox }
@@ -65,7 +67,9 @@ final class NoteStore: ObservableObject {
 
     @Published private(set) var notes: [NoteEntry] = []
     @Published private(set) var activeID: UUID?
-    @Published private(set) var text = ""
+    @Published private(set) var text = "" { didSet { recount() } }
+    /// Word and character counts of `text`, worked out off the main thread.
+    @Published private(set) var counts = TextCounts()
     /// Bumps whenever `text` is replaced from outside the editor.
     @Published private(set) var textVersion = 0
     @Published private(set) var previews: [UUID: String] = [:]
@@ -75,6 +79,10 @@ final class NoteStore: ObservableObject {
     @Published private(set) var box: NoteBox = .inbox
     /// A one-off message for the window, such as a conflict copy being made.
     @Published var notice: String?
+    /// "Moved to Trash"-style message that comes with an Undo button.
+    @Published var undoNotice: String?
+    /// The window's undo manager, so Edit › Undo also covers archiving and trashing.
+    weak var undoManager: UndoManager?
     /// Full text of every note, for sidebar search.
     private var contents: [UUID: String] = [:]
 
@@ -91,6 +99,10 @@ final class NoteStore: ObservableObject {
     private var lastSelfWrite = Date.distantPast
     /// Modification date of the open note's file when we last read or wrote it.
     private var diskStamp: Date?
+    private var countWork: DispatchWorkItem?
+    private var countToken = 0
+    /// File contents by modification date, so rescans only read changed files.
+    private var bodyCache: [URL: (date: Date, body: String)] = [:]
 
     private static let autosaveDelay = 0.6
     private static let savedBadgeDuration = 1.5
@@ -223,6 +235,7 @@ final class NoteStore: ObservableObject {
             contents[note.id] = text
             modified[note.id] = Date()
             showSavedBadge()
+            autoTitle(note.id)
         } catch {
             NSSound.beep()
         }
@@ -246,6 +259,35 @@ final class NoteStore: ObservableObject {
         modified[copy.id] = Date()
         saveIndex()
         notice = L("Changed in another app. Your version was saved as “%@”.", copy.title)
+    }
+
+    /// Notes created without a name take their first line as the title, as in Notes.
+    private func autoTitle(_ id: UUID) {
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].autoNamed == true else { return }
+        let firstLine = String(Self.preview(of: text).prefix(60))
+        guard !firstLine.isEmpty else { return }
+        let clean = Self.sanitize(firstLine)
+        let current = notes[i].title
+        // "Title 2" already stands for "Title" when another note has that name.
+        let numbered = "^" + NSRegularExpression.escapedPattern(for: clean) + " \\d+$"
+        guard current != clean, current.range(of: numbered, options: .regularExpression) == nil else { return }
+        rename(id, to: clean, manual: false)
+    }
+
+    private func recount() {
+        countWork?.cancel()
+        countToken += 1
+        let token = countToken
+        let snapshot = text
+        let work = DispatchWorkItem { [weak self] in
+            let counts = TextCounts(words: Counting.words(snapshot), characters: snapshot.count)
+            DispatchQueue.main.async {
+                guard let self, self.countToken == token else { return }
+                self.counts = counts
+            }
+        }
+        countWork = work
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.12, execute: work)
     }
 
     private func showSavedBadge() {
@@ -272,7 +314,7 @@ final class NoteStore: ObservableObject {
         }
         box = .inbox
         let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
-                              lastOpened: Date(), createdAt: Date(), box: .inbox)
+                              lastOpened: Date(), createdAt: Date(), box: .inbox, autoNamed: name == nil)
         notes.append(entry)
         previews[entry.id] = Self.preview(of: content)
         contents[entry.id] = content
@@ -282,10 +324,12 @@ final class NoteStore: ObservableObject {
         return entry.id
     }
 
-    func rename(_ id: UUID, to newTitle: String) {
+    /// A manual rename fixes the title; automatic ones keep following the first line.
+    func rename(_ id: UUID, to newTitle: String, manual: Bool = true) {
         guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        if manual { notes[i].autoNamed = false }
         let clean = Self.sanitize(newTitle)
-        guard clean != notes[i].title else { return }
+        guard clean != notes[i].title else { saveIndex(); return }
         if id == activeID { flushNow() }
         let dir = dirs[notes[i].location]!
         // APFS ignores case, so "Foo" → "foo" is the same file: rename through a temporary name.
@@ -355,6 +399,7 @@ final class NoteStore: ObservableObject {
             NSSound.beep()
             return
         }
+        let previous = (box: notes[i].location, pinned: notes[i].pinned, pinnedAt: notes[i].pinnedAt)
         notes[i].fileName = target
         notes[i].box = destination
         notes[i].trashedAt = destination == .trash ? Date() : nil
@@ -363,8 +408,37 @@ final class NoteStore: ObservableObject {
             notes[i].pinnedAt = nil
         }
         saveIndex()
+        let replaying = (undoManager?.isUndoing ?? false) || (undoManager?.isRedoing ?? false)
+        undoManager?.registerUndo(withTarget: self) { store in
+            store.moveBack(id, to: previous.box, pinned: previous.pinned, pinnedAt: previous.pinnedAt)
+        }
+        switch destination {
+        case .trash:
+            undoManager?.setActionName(L("Move to Trash"))
+            if !replaying { undoNotice = L("Moved to Trash") }
+        case .archive:
+            undoManager?.setActionName(L("Archive"))
+            if !replaying { undoNotice = L("Note archived") }
+        case .inbox:
+            undoManager?.setActionName(L("Move to Inbox"))
+            if !replaying { undoNotice = L("Moved to Inbox") }
+        }
         if id == activeID { selectNeighbour(of: id, in: listBefore) }
     }
+
+    /// Undo of a move: the note goes back to its box, pin and all, and opens there.
+    private func moveBack(_ id: UUID, to previous: NoteBox, pinned: Bool, pinnedAt: Date?) {
+        move(id, to: previous)
+        if let i = notes.firstIndex(where: { $0.id == id }) {
+            notes[i].pinned = pinned
+            notes[i].pinnedAt = pinnedAt
+            saveIndex()
+        }
+        show(previous)
+        select(id)
+    }
+
+    func undoLastMove() { undoManager?.undo() }
 
     private func forget(_ id: UUID) {
         let wasActive = id == activeID
@@ -474,7 +548,16 @@ final class NoteStore: ObservableObject {
             // Entries saved before creation dates were tracked take the file's.
             if notes[i].createdAt == nil { notes[i].createdAt = values?.creationDate ?? notes[i].lastOpened }
             let tooLarge = (values?.fileSize ?? 0) > Self.maxFileBytes
-            let body = tooLarge ? "" : ((try? String(contentsOf: file, encoding: .utf8)) ?? "")
+            let date = values?.contentModificationDate
+            let body: String
+            if tooLarge {
+                body = ""
+            } else if let date, let cached = bodyCache[file], cached.date == date {
+                body = cached.body
+            } else {
+                body = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+                if let date { bodyCache[file] = (date, body) }
+            }
             freshPreviews[notes[i].id] = Self.preview(of: body)
             freshContents[notes[i].id] = body
             freshModified[notes[i].id] = values?.contentModificationDate
@@ -587,6 +670,11 @@ final class NoteStore: ObservableObject {
     private func seedStarters() {
         newNote(content: Starters.welcome.text, name: Starters.welcome.title)
     }
+}
+
+struct TextCounts: Equatable {
+    var words = 0
+    var characters = 0
 }
 
 /// The welcome note, in the app's language (Localizable.strings).

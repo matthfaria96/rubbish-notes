@@ -61,6 +61,10 @@
 "Delete every note in the Trash permanently" = "Apagar definitivamente todas as notas do Lixo";
 "1 note will be deleted permanently. You can’t undo this." = "1 nota será apagada definitivamente. Não é possível desfazer.";
 "%ld notes will be deleted permanently. You can’t undo this." = "%ld notas serão apagadas definitivamente. Não é possível desfazer.";
+"Undo" = "Desfazer";
+"Moved to Trash" = "Movida para o Lixo";
+"Note archived" = "Nota arquivada";
+"Moved to Inbox" = "Movida para Entrada";
 "No Note" = "Nenhuma Nota";
 "Create a note or drop a text file here." = "Crie uma nota ou solte um arquivo de texto aqui.";
 "Formatting Removed" = "Formatação Removida";

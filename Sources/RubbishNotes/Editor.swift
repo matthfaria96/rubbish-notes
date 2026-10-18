@@ -39,8 +39,17 @@ final class EditorTextView: NSTextView {
         super.setFrameSize(newSize)
         let horizontal = max(36, floor((newSize.width - maxColumnWidth) / 2))
         if abs(textContainerInset.width - horizontal) > 0.5 {
-            textContainerInset = NSSize(width: horizontal, height: 24)
+            textContainerInset = NSSize(width: horizontal, height: Self.insetHeight)
         }
+    }
+
+    /// The inset applies to top and bottom alike; the text starts higher, which
+    /// leaves room at the end so the last lines clear the floating word count.
+    private static let insetHeight: CGFloat = 56
+    private static let topMargin: CGFloat = 24
+
+    override var textContainerOrigin: NSPoint {
+        NSPoint(x: textContainerInset.width, y: Self.topMargin)
     }
 
     override func drawBackground(in rect: NSRect) {
@@ -93,6 +102,8 @@ struct EditorView: NSViewRepresentable {
     let editable: Bool
     let theme: EditorTheme
     let accent: NSColor
+    /// Sidebar search text, highlighted in the open note.
+    let highlight: String
     @Binding var selection: SelectionStats
     var onRichPaste: () -> Void
 
@@ -183,10 +194,22 @@ struct EditorView: NSViewRepresentable {
             }
             if c.lastNoteID != noteID {
                 c.lastNoteID = noteID
-                textView.undoManager?.removeAllActions()
+                // One undo stack serves the window (so archiving and trashing can be
+                // undone too); drop only the previous note's typing from it.
+                if let undo = textView.undoManager {
+                    undo.removeAllActions(withTarget: textView)
+                    if let storage = textView.textStorage { undo.removeAllActions(withTarget: storage) }
+                }
                 textView.setSelectedRange(NSRange(location: 0, length: 0))
                 textView.scrollToBeginningOfDocument(nil)
             }
+        }
+
+        let highlightKey = "\(highlight)|\(textVersion)|\(noteID?.uuidString ?? "")"
+        if c.highlightKey != highlightKey {
+            let noteChanged = !c.highlightKey.hasSuffix(noteID?.uuidString ?? "-")
+            c.highlightKey = highlightKey
+            c.highlight(highlight, scroll: noteChanged)
         }
     }
 
@@ -198,7 +221,28 @@ struct EditorView: NSViewRepresentable {
         var lastVersion = -1
         var lastNoteID: UUID?
         var syncing = false
+        var highlightKey = ""
         private var focusObserver: NSObjectProtocol?
+
+        /// Marks every match of the sidebar search and brings the first into view.
+        func highlight(_ query: String, scroll: Bool) {
+            guard let textView, let layout = textView.layoutManager else { return }
+            let text = textView.string as NSString
+            layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: NSRange(location: 0, length: text.length))
+            let query = query.trimmingCharacters(in: .whitespaces)
+            guard !query.isEmpty else { return }
+            let color = parent.theme.accentNS(fallback: parent.accent).withAlphaComponent(0.35)
+            var range = NSRange(location: 0, length: text.length)
+            var first: NSRange?
+            while true {
+                let hit = text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive], range: range)
+                if hit.location == NSNotFound || hit.length == 0 { break }
+                layout.addTemporaryAttribute(.backgroundColor, value: color, forCharacterRange: hit)
+                if first == nil { first = hit }
+                range = NSRange(location: NSMaxRange(hit), length: text.length - NSMaxRange(hit))
+            }
+            if scroll, let first { textView.scrollRangeToVisible(first) }
+        }
 
         init(_ parent: EditorView) { self.parent = parent }
 

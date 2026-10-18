@@ -15,7 +15,7 @@ struct MainView: View {
     /// Hides everything around the text except the button that ends it.
     @AppStorage(Prefs.focusMode) private var focusMode = false
     @StateObject private var selectionState = ViewState(SelectionStats())
-    @StateObject private var toastState = ViewState<String?>(nil)
+    @StateObject private var toastState = ViewState<Toast?>(nil)
     @StateObject private var toastTask = ViewState<DispatchWorkItem?>(nil)
     @StateObject private var searchState = ViewState("")
     @StateObject private var columns = ViewState(NavigationSplitViewVisibility.all)
@@ -52,6 +52,11 @@ struct MainView: View {
             showToast(message)
             store.notice = nil
         }
+        .onChange(of: store.undoNotice) {
+            guard let message = store.undoNotice else { return }
+            showToast(message, undoable: true)
+            store.undoNotice = nil
+        }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 NotificationCenter.default.post(name: .focusEditor, object: nil)
@@ -83,6 +88,7 @@ struct MainView: View {
                     editable: !isTrashed,
                     theme: theme,
                     accent: iconStyle.accentNS,
+                    highlight: searchState.value,
                     selection: $selectionState.value,
                     onRichPaste: { showToast(L("Formatting Removed")) }
                 )
@@ -200,8 +206,8 @@ struct MainView: View {
     private var statusCapsule: some View {
         let selection = selectionState.value
         let hasSelection = selection.characters > 0
-        let words = hasSelection ? selection.words : Counting.words(store.text)
-        let characters = hasSelection ? selection.characters : store.text.count
+        let words = hasSelection ? selection.words : store.counts.words
+        let characters = hasSelection ? selection.characters : store.counts.characters
         let minutes = max(1, Int((Double(words) / 220).rounded()))
         return HStack(spacing: 6) {
             Text(words == 1 ? L("1 word") : L("%ld words", words))
@@ -226,12 +232,23 @@ struct MainView: View {
 
     @ViewBuilder
     private var toast: some View {
-        if let message = toastState.value {
-            Label(message, systemImage: "textformat")
-                .font(.callout.weight(.medium))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .glassEffect(.regular, in: .capsule)
+        if let toast = toastState.value {
+            HStack(spacing: 10) {
+                Label(toast.message, systemImage: toast.undoable ? "checkmark" : "textformat")
+                    .font(.callout.weight(.medium))
+                if toast.undoable {
+                    Button(L("Undo")) {
+                        store.undoLastMove()
+                        toastState.value = nil
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, toast.undoable ? 6 : 16)
+            .padding(.vertical, toast.undoable ? 5 : 9)
+            .glassEffect(.regular, in: .capsule)
                 .padding(.top, 14)
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
@@ -239,13 +256,14 @@ struct MainView: View {
 
     // MARK: Actions
 
-    private func showToast(_ message: String) {
+    private func showToast(_ message: String, undoable: Bool = false) {
         toastTask.value?.cancel()
-        toastState.value = message
+        toastState.value = Toast(message: message, undoable: undoable)
         let state = toastState
         let work = DispatchWorkItem { state.value = nil }
         toastTask.value = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
+        // Leave time to reach the Undo button.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (undoable ? 4 : 1.6), execute: work)
     }
 
     private func importDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -278,6 +296,7 @@ struct WindowConfigurator: NSViewRepresentable {
     private func apply(to window: NSWindow?) {
         guard let window else { return }
         window.level = floatOnTop ? .floating : .normal
+        NoteStore.shared.undoManager = window.undoManager
         window.tabbingMode = .disallowed
     }
 }
@@ -294,4 +313,9 @@ private struct FocusButtonStyle: PrimitiveButtonStyle {
             Button(role: configuration.role, action: configuration.trigger) { configuration.label }
         }
     }
+}
+
+private struct Toast: Equatable {
+    let message: String
+    let undoable: Bool
 }

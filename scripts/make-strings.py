@@ -1,0 +1,156 @@
+# Generates Support/Localizations/<lang>.lproj/Localizable.strings. Usage: python3 scripts/make-strings.py Support/Localizations
+# Each row: key, then en, pt, es, fr, de, it.
+import os, sys
+
+LANGS = ["en", "pt", "es", "fr", "de", "it"]
+
+T = [
+# Menus and actions
+("New Note", "New Note", "Nova Nota", "Nueva nota", "Nouvelle note", "Neue Notiz", "Nuova nota"),
+("Open…", "Open…", "Abrir…", "Abrir…", "Ouvrir…", "Öffnen …", "Apri…"),
+("Save a Copy…", "Save a Copy…", "Salvar uma Cópia…", "Guardar una copia…", "Enregistrer une copie…", "Kopie sichern …", "Salva una copia…"),
+("Print…", "Print…", "Imprimir…", "Imprimir…", "Imprimer…", "Drucken …", "Stampa…"),
+("Note", "Note", "Nota", "Nota", "Note", "Notiz", "Nota"),
+("Focus Mode", "Focus Mode", "Modo Foco", "Modo concentración", "Mode concentration", "Fokusmodus", "Modalità concentrazione"),
+("Exit Focus Mode", "Exit Focus Mode", "Sair do Modo Foco", "Salir del modo concentración", "Quitter le mode concentration", "Fokusmodus beenden", "Esci dalla modalità concentrazione"),
+("Focus Mode (⇧⌘F)", "Focus Mode (⇧⌘F)", "Modo Foco (⇧⌘F)", "Modo concentración (⇧⌘F)", "Mode concentration (⇧⌘F)", "Fokusmodus (⇧⌘F)", "Modalità concentrazione (⇧⌘F)"),
+("Exit Focus Mode (⇧⌘F)", "Exit Focus Mode (⇧⌘F)", "Sair do Modo Foco (⇧⌘F)", "Salir del modo concentración (⇧⌘F)", "Quitter le mode concentration (⇧⌘F)", "Fokusmodus beenden (⇧⌘F)", "Esci dalla modalità concentrazione (⇧⌘F)"),
+("Float on Top", "Float on Top", "Manter na Frente", "Mantener delante", "Garder au premier plan", "Im Vordergrund halten", "Mantieni in primo piano"),
+("Ruled Lines", "Ruled Lines", "Linhas Pautadas", "Líneas de cuaderno", "Lignes réglées", "Linien", "Righe"),
+("Bigger Text", "Bigger Text", "Aumentar Texto", "Texto más grande", "Texte plus grand", "Größerer Text", "Testo più grande"),
+("Smaller Text", "Smaller Text", "Diminuir Texto", "Texto más pequeño", "Texte plus petit", "Kleinerer Text", "Testo più piccolo"),
+("Actual Size", "Actual Size", "Tamanho Real", "Tamaño real", "Taille réelle", "Originalgröße", "Dimensioni reali"),
+("Restore to Inbox", "Restore to Inbox", "Restaurar para Entrada", "Restaurar a Entrada", "Restaurer dans Réception", "In Eingang wiederherstellen", "Ripristina in In arrivo"),
+("Delete Permanently", "Delete Permanently", "Apagar Definitivamente", "Eliminar definitivamente", "Supprimer définitivement", "Endgültig löschen", "Elimina definitivamente"),
+("Pin", "Pin", "Fixar", "Fijar", "Épingler", "Anheften", "Fissa"),
+("Unpin", "Unpin", "Desafixar", "Desfijar", "Désépingler", "Loslösen", "Rimuovi dalle fissate"),
+("Pin Note", "Pin Note", "Fixar Nota", "Fijar nota", "Épingler la note", "Notiz anheften", "Fissa la nota"),
+("Unpin Note", "Unpin Note", "Desafixar Nota", "Desfijar nota", "Désépingler la note", "Notiz loslösen", "Rimuovi la nota dalle fissate"),
+("Archive", "Archive", "Arquivar", "Archivar", "Archiver", "Archivieren", "Archivia"),
+("Archive Note", "Archive Note", "Arquivar Nota", "Archivar nota", "Archiver la note", "Notiz archivieren", "Archivia la nota"),
+("Move to Inbox", "Move to Inbox", "Mover para Entrada", "Mover a Entrada", "Déplacer vers Réception", "In Eingang bewegen", "Sposta in In arrivo"),
+("Share", "Share", "Compartilhar", "Compartir", "Partager", "Teilen", "Condividi"),
+("Share…", "Share…", "Compartilhar…", "Compartir…", "Partager…", "Teilen …", "Condividi…"),
+("Share Note", "Share Note", "Compartilhar Nota", "Compartir nota", "Partager la note", "Notiz teilen", "Condividi la nota"),
+("Show in Finder", "Show in Finder", "Mostrar no Finder", "Mostrar en el Finder", "Afficher dans le Finder", "Im Finder zeigen", "Mostra nel Finder"),
+("Move to Trash", "Move to Trash", "Mover para o Lixo", "Trasladar a la papelera", "Placer dans la corbeille", "In den Papierkorb legen", "Sposta nel cestino"),
+("No Note Selected", "No Note Selected", "Nenhuma Nota Selecionada", "Ninguna nota seleccionada", "Aucune note sélectionnée", "Keine Notiz ausgewählt", "Nessuna nota selezionata"),
+("Find", "Find", "Buscar", "Buscar", "Rechercher", "Suchen", "Trova"),
+("Find in Note (⌘F)", "Find in Note (⌘F)", "Buscar na Nota (⌘F)", "Buscar en la nota (⌘F)", "Rechercher dans la note (⌘F)", "In Notiz suchen (⌘F)", "Trova nella nota (⌘F)"),
+("Restore", "Restore", "Restaurar", "Restaurar", "Restaurer", "Wiederherstellen", "Ripristina"),
+("Rename", "Rename", "Renomear", "Cambiar nombre", "Renommer", "Umbenennen", "Rinomina"),
+("Rename Note", "Rename Note", "Renomear Nota", "Cambiar nombre de la nota", "Renommer la note", "Notiz umbenennen", "Rinomina la nota"),
+("Trash", "Trash", "Lixo", "Papelera", "Corbeille", "Papierkorb", "Cestino"),
+("Delete", "Delete", "Apagar", "Eliminar", "Supprimer", "Löschen", "Elimina"),
+("New Note (⌘N)", "New Note (⌘N)", "Nova Nota (⌘N)", "Nueva nota (⌘N)", "Nouvelle note (⌘N)", "Neue Notiz (⌘N)", "Nuova nota (⌘N)"),
+# Boxes
+("box.inbox", "Inbox", "Entrada", "Entrada", "Réception", "Eingang", "In arrivo"),
+("box.archive", "Archive", "Arquivo", "Archivo", "Archives", "Archiv", "Archivio"),
+("box.trash", "Trash", "Lixo", "Papelera", "Corbeille", "Papierkorb", "Cestino"),
+("Show", "Show", "Mostrar", "Mostrar", "Afficher", "Anzeigen", "Mostra"),
+("Pinned", "Pinned", "Fixadas", "Fijadas", "Épinglées", "Angeheftet", "Fissate"),
+("Notes", "Notes", "Notas", "Notas", "Notes", "Notizen", "Note"),
+("Results", "Results", "Resultados", "Resultados", "Résultats", "Ergebnisse", "Risultati"),
+("Archived", "Archived", "Arquivadas", "Archivadas", "Archivées", "Archiviert", "Archiviate"),
+("Deleted", "Deleted", "Apagadas", "Eliminadas", "Supprimées", "Gelöscht", "Eliminate"),
+("Search", "Search", "Buscar", "Buscar", "Rechercher", "Suchen", "Cerca"),
+("Name", "Name", "Nome", "Nombre", "Nom", "Name", "Nome"),
+("No additional text", "No additional text", "Nenhum texto adicional", "Sin texto adicional", "Aucun texte supplémentaire", "Kein weiterer Text", "Nessun testo aggiuntivo"),
+("Yesterday", "Yesterday", "Ontem", "Ayer", "Hier", "Gestern", "Ieri"),
+("No Notes", "No Notes", "Nenhuma Nota", "Ninguna nota", "Aucune note", "Keine Notizen", "Nessuna nota"),
+("Notes you write appear here.", "Notes you write appear here.", "As notas que você escrever aparecem aqui.", "Las notas que escribas aparecen aquí.", "Les notes que vous écrivez apparaissent ici.", "Deine Notizen erscheinen hier.", "Le note che scrivi appaiono qui."),
+("No Archived Notes", "No Archived Notes", "Nenhuma Nota Arquivada", "Ninguna nota archivada", "Aucune note archivée", "Keine archivierten Notizen", "Nessuna nota archiviata"),
+("Archive notes to keep them out of the way.", "Archive notes to keep them out of the way.", "Arquive notas para tirá-las do caminho.", "Archiva notas para apartarlas.", "Archivez des notes pour les mettre de côté.", "Archiviere Notizen, um sie beiseitezulegen.", "Archivia le note per metterle da parte."),
+("Trash Is Empty", "Trash Is Empty", "O Lixo Está Vazio", "La papelera está vacía", "La corbeille est vide", "Der Papierkorb ist leer", "Il cestino è vuoto"),
+("Deleted notes stay here until you empty the Trash.", "Deleted notes stay here until you empty the Trash.", "As notas apagadas ficam aqui até você esvaziar o Lixo.", "Las notas eliminadas permanecen aquí hasta que vacíes la papelera.", "Les notes supprimées restent ici jusqu’à ce que vous vidiez la corbeille.", "Gelöschte Notizen bleiben hier, bis du den Papierkorb entleerst.", "Le note eliminate restano qui finché non svuoti il cestino."),
+("Empty Trash", "Empty Trash", "Esvaziar Lixo", "Vaciar papelera", "Vider la corbeille", "Papierkorb entleeren", "Svuota cestino"),
+("Empty the Trash?", "Empty the Trash?", "Esvaziar o Lixo?", "¿Vaciar la papelera?", "Vider la corbeille ?", "Papierkorb entleeren?", "Svuotare il cestino?"),
+("Delete every note in the Trash permanently", "Delete every note in the Trash permanently", "Apagar definitivamente todas as notas do Lixo", "Eliminar definitivamente todas las notas de la papelera", "Supprimer définitivement toutes les notes de la corbeille", "Alle Notizen im Papierkorb endgültig löschen", "Elimina definitivamente tutte le note nel cestino"),
+("1 note will be deleted permanently. You can’t undo this.", "1 note will be deleted permanently. You can’t undo this.", "1 nota será apagada definitivamente. Não é possível desfazer.", "1 nota se eliminará definitivamente. No se puede deshacer.", "1 note sera supprimée définitivement. Cette action est irréversible.", "1 Notiz wird endgültig gelöscht. Dies kann nicht widerrufen werden.", "1 nota verrà eliminata definitivamente. L’operazione non può essere annullata."),
+("%ld notes will be deleted permanently. You can’t undo this.", "%ld notes will be deleted permanently. You can’t undo this.", "%ld notas serão apagadas definitivamente. Não é possível desfazer.", "%ld notas se eliminarán definitivamente. No se puede deshacer.", "%ld notes seront supprimées définitivement. Cette action est irréversible.", "%ld Notizen werden endgültig gelöscht. Dies kann nicht widerrufen werden.", "%ld note verranno eliminate definitivamente. L’operazione non può essere annullata."),
+# Detail
+("Undo", "Undo", "Desfazer", "Deshacer", "Annuler", "Widerrufen", "Annulla"),
+("Moved to Trash", "Moved to Trash", "Movida para o Lixo", "Trasladada a la papelera", "Placée dans la corbeille", "In den Papierkorb gelegt", "Spostata nel cestino"),
+("Note archived", "Note archived", "Nota arquivada", "Nota archivada", "Note archivée", "Notiz archiviert", "Nota archiviata"),
+("Moved to Inbox", "Moved to Inbox", "Movida para Entrada", "Movida a Entrada", "Déplacée vers Réception", "In Eingang bewegt", "Spostata in In arrivo"),
+("No Note", "No Note", "Nenhuma Nota", "Ninguna nota", "Aucune note", "Keine Notiz", "Nessuna nota"),
+("Create a note or drop a text file here.", "Create a note or drop a text file here.", "Crie uma nota ou solte um arquivo de texto aqui.", "Crea una nota o suelta aquí un archivo de texto.", "Créez une note ou déposez un fichier texte ici.", "Erstelle eine Notiz oder lege hier eine Textdatei ab.", "Crea una nota o trascina qui un file di testo."),
+("Formatting Removed", "Formatting Removed", "Formatação Removida", "Formato eliminado", "Mise en forme supprimée", "Formatierung entfernt", "Formattazione rimossa"),
+("This note is in the Trash.", "This note is in the Trash.", "Esta nota está no Lixo.", "Esta nota está en la papelera.", "Cette note est dans la corbeille.", "Diese Notiz ist im Papierkorb.", "Questa nota è nel cestino."),
+("In the Trash", "In the Trash", "No Lixo", "En la papelera", "Dans la corbeille", "Im Papierkorb", "Nel cestino"),
+("Saved", "Saved", "Salvo", "Guardado", "Enregistré", "Gesichert", "Salvato"),
+("Plain Text", "Plain Text", "Texto Simples", "Texto sin formato", "Texte brut", "Reiner Text", "Testo semplice"),
+("1 word", "1 word", "1 palavra", "1 palabra", "1 mot", "1 Wort", "1 parola"),
+("%ld words", "%ld words", "%ld palavras", "%ld palabras", "%ld mots", "%ld Wörter", "%ld parole"),
+("1 character", "1 character", "1 caractere", "1 carácter", "1 caractère", "1 Zeichen", "1 carattere"),
+("%ld characters", "%ld characters", "%ld caracteres", "%ld caracteres", "%ld caractères", "%ld Zeichen", "%ld caratteri"),
+("selected", "selected", "selecionados", "seleccionados", "sélectionnés", "ausgewählt", "selezionati"),
+("%ld min read", "%ld min read", "%ld min de leitura", "%ld min de lectura", "%ld min de lecture", "%ld Min. Lesezeit", "%ld min di lettura"),
+("Changed in another app. Your version was saved as “%@”.", "Changed in another app. Your version was saved as “%@”.", "Alterada em outro app. Sua versão foi salva como “%@”.", "Modificada en otra app. Tu versión se guardó como “%@”.", "Modifiée dans une autre app. Votre version a été enregistrée sous « %@ ».", "In einer anderen App geändert. Deine Version wurde als „%@“ gesichert.", "Modificata in un’altra app. La tua versione è stata salvata come “%@”."),
+("“%@” is larger than 20 MB and wasn’t imported.", "“%@” is larger than 20 MB and wasn’t imported.", "“%@” tem mais de 20 MB e não foi importado.", "“%@” ocupa más de 20 MB y no se importó.", "« %@ » dépasse 20 Mo et n’a pas été importé.", "„%@“ ist größer als 20 MB und wurde nicht importiert.", "“%@” supera i 20 MB e non è stato importato."),
+# Settings
+("General", "General", "Geral", "General", "Général", "Allgemein", "Generali"),
+("Editor", "Editor", "Editor", "Editor", "Éditeur", "Editor", "Editor"),
+("Themes", "Themes", "Temas", "Temas", "Thèmes", "Themen", "Temi"),
+("App Icon", "App Icon", "Ícone do App", "Icono de la app", "Icône de l’app", "App-Symbol", "Icona dell’app"),
+("Blue", "Blue", "Azul", "Azul", "Bleu", "Blau", "Blu"),
+("Red", "Red", "Vermelho", "Rojo", "Rouge", "Rot", "Rosso"),
+("%@ (Default)", "%@ (Default)", "%@ (Padrão)", "%@ (predeterminado)", "%@ (par défaut)", "%@ (Standard)", "%@ (predefinito)"),
+("Appearance", "Appearance", "Aparência", "Apariencia", "Apparence", "Erscheinungsbild", "Aspetto"),
+("Automatic", "Automatic", "Automática", "Automática", "Automatique", "Automatisch", "Automatico"),
+("Light", "Light", "Clara", "Clara", "Claire", "Hell", "Chiaro"),
+("Dark", "Dark", "Escura", "Oscura", "Sombre", "Dunkel", "Scuro"),
+("Language", "Language", "Idioma", "Idioma", "Langue", "Sprache", "Lingua"),
+("System", "System", "Sistema", "Sistema", "Système", "System", "Sistema"),
+("Restart Rubbish Notes to use the new language?", "Restart Rubbish Notes to use the new language?", "Reiniciar o Rubbish Notes para usar o novo idioma?", "¿Reiniciar Rubbish Notes para usar el nuevo idioma?", "Redémarrer Rubbish Notes pour utiliser la nouvelle langue ?", "Rubbish Notes neu starten, um die neue Sprache zu verwenden?", "Riavviare Rubbish Notes per usare la nuova lingua?"),
+("Restart Now", "Restart Now", "Reiniciar Agora", "Reiniciar ahora", "Redémarrer maintenant", "Jetzt neu starten", "Riavvia ora"),
+("Later", "Later", "Depois", "Más tarde", "Plus tard", "Später", "Più tardi"),
+("Keep window on top of other apps", "Keep window on top of other apps", "Manter a janela à frente de outros apps", "Mantener la ventana delante de otras apps", "Garder la fenêtre au-dessus des autres apps", "Fenster über anderen Apps halten", "Mantieni la finestra sopra le altre app"),
+("Storage", "Storage", "Armazenamento", "Almacenamiento", "Stockage", "Speicher", "Archiviazione"),
+("Notes Folder", "Notes Folder", "Pasta de Notas", "Carpeta de notas", "Dossier des notes", "Notizordner", "Cartella delle note"),
+("Every note is a plain .txt file, saved automatically as you type. Deleted notes go to the Trash.", "Every note is a plain .txt file, saved automatically as you type. Deleted notes go to the Trash.", "Cada nota é um arquivo .txt simples, salvo automaticamente enquanto você digita. Notas apagadas vão para o Lixo.", "Cada nota es un archivo .txt sencillo que se guarda automáticamente mientras escribes. Las notas eliminadas van a la papelera.", "Chaque note est un simple fichier .txt, enregistré automatiquement pendant la saisie. Les notes supprimées vont dans la corbeille.", "Jede Notiz ist eine einfache .txt-Datei, die beim Schreiben automatisch gesichert wird. Gelöschte Notizen landen im Papierkorb.", "Ogni nota è un semplice file .txt, salvato automaticamente mentre scrivi. Le note eliminate finiscono nel cestino."),
+("Font", "Font", "Fonte", "Tipo de letra", "Police", "Schrift", "Font"),
+("Typeface", "Typeface", "Tipo de Letra", "Tipografía", "Police de caractères", "Schriftart", "Carattere"),
+("Size", "Size", "Tamanho", "Tamaño", "Taille", "Größe", "Dimensione"),
+("%lld pt", "%lld pt", "%lld pt", "%lld pt", "%lld pt", "%lld pt", "%lld pt"),
+("Writing", "Writing", "Escrita", "Escritura", "Écriture", "Schreiben", "Scrittura"),
+("Check spelling while typing", "Check spelling while typing", "Verificar ortografia ao digitar", "Revisar la ortografía al escribir", "Vérifier l’orthographe lors de la saisie", "Rechtschreibung während der Eingabe prüfen", "Controlla l’ortografia durante la digitazione"),
+("Ruled lines", "Ruled lines", "Linhas pautadas", "Líneas de cuaderno", "Lignes réglées", "Linien", "Righe"),
+("Preview", "Preview", "Pré-visualização", "Vista previa", "Aperçu", "Vorschau", "Anteprima"),
+("Written on rubbish, kept like treasure.", "Written on rubbish, kept like treasure.", "Escrito no lixo, guardado como tesouro.", "Escrito en la basura, guardado como un tesoro.", "Écrit sur un déchet, gardé comme un trésor.", "Auf Abfall geschrieben, wie ein Schatz bewahrt.", "Scritto su un rifiuto, custodito come un tesoro."),
+("Current theme", "Current theme", "Tema atual", "Tema actual", "Thème actuel", "Aktuelles Thema", "Tema attuale"),
+("Click to apply", "Click to apply", "Clique para aplicar", "Haz clic para aplicar", "Cliquez pour appliquer", "Zum Anwenden klicken", "Fai clic per applicare"),
+("Dark and light themes also set the window's look while Appearance is Automatic.", "Dark and light themes also set the window's look while Appearance is Automatic.", "Temas claros e escuros também mudam a janela quando a Aparência está em Automática.", "Los temas claros y oscuros también cambian la ventana cuando la apariencia es automática.", "Les thèmes clairs et sombres modifient aussi la fenêtre lorsque l’apparence est automatique.", "Helle und dunkle Themen ändern auch das Fenster, wenn das Erscheinungsbild automatisch ist.", "I temi chiari e scuri cambiano anche la finestra quando l’aspetto è automatico."),
+("Default", "Default", "Padrão", "Predeterminado", "Par défaut", "Standard", "Predefinito"),
+# Theme sample
+("Shopping list", "Shopping list", "Lista de compras", "Lista de la compra", "Liste de courses", "Einkaufsliste", "Lista della spesa"),
+("written on ", "written on ", "escrito no ", "escrito en la ", "écrit sur un ", "geschrieben auf ", "scritto su un "),
+("rubbish,", "rubbish,", "lixo,", "basura,", "déchet,", "Abfall,", "rifiuto,"),
+("kept like treasure.", "kept like treasure.", "guardado como tesouro.", "guardado como un tesoro.", "gardé comme un trésor.", "bewahrt wie ein Schatz.", "custodito come un tesoro."),
+("— saved a moment ago", "— saved a moment ago", "— salvo agora mesmo", "— guardado hace un momento", "— enregistré à l’instant", "— gerade gesichert", "— salvato poco fa"),
+# Welcome note
+("welcome.title", "Welcome to Rubbish Notes", "Bem-vindo ao Rubbish Notes", "Te damos la bienvenida a Rubbish Notes", "Bienvenue dans Rubbish Notes", "Willkommen bei Rubbish Notes", "Benvenuto in Rubbish Notes"),
+("welcome.text",
+ "Thanks for using Rubbish Notes. 👋\n\nJust write. Everything saves itself.\n\nShortcuts are in the menus at the top.\nThemes and appearance are in Settings (⌘,).\n\nDelete this note whenever you like.",
+ "Obrigado por usar o Rubbish Notes. 👋\n\nEscreva. Tudo é salvo sozinho.\n\nOs atalhos estão nos menus, lá em cima.\nTemas e aparência ficam em Ajustes (⌘,).\n\nPode apagar esta nota.",
+ "Gracias por usar Rubbish Notes. 👋\n\nEscribe. Todo se guarda solo.\n\nLos atajos están en los menús de arriba.\nLos temas y la apariencia están en Ajustes (⌘,).\n\nPuedes borrar esta nota cuando quieras.",
+ "Merci d’utiliser Rubbish Notes. 👋\n\nÉcrivez. Tout s’enregistre tout seul.\n\nLes raccourcis sont dans les menus, en haut.\nLes thèmes et l’apparence sont dans Réglages (⌘,).\n\nSupprimez cette note quand vous voulez.",
+ "Danke, dass du Rubbish Notes verwendest. 👋\n\nEinfach schreiben. Alles sichert sich von selbst.\n\nDie Kurzbefehle findest du in den Menüs oben.\nThemen und Erscheinungsbild sind in den Einstellungen (⌘,).\n\nDu kannst diese Notiz jederzeit löschen.",
+ "Grazie per usare Rubbish Notes. 👋\n\nScrivi e basta. Tutto si salva da solo.\n\nLe scorciatoie sono nei menu in alto.\nTemi e aspetto sono in Impostazioni (⌘,).\n\nPuoi eliminare questa nota quando vuoi."),
+]
+
+def esc(s):
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+out = sys.argv[1]
+keys = [row[0] for row in T]
+assert len(keys) == len(set(keys)), [k for k in keys if keys.count(k) > 1]
+for i, lang in enumerate(LANGS):
+    d = os.path.join(out, f"{lang}.lproj")
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "Localizable.strings"), "w", encoding="utf-8") as f:
+        f.write("/* Rubbish Notes */\n\n")
+        for row in T:
+            assert len(row) == 7, row[0]
+            f.write(f'"{esc(row[0])}" = "{esc(row[1 + i])}";\n')
+print(len(T), "keys ×", len(LANGS), "languages")
