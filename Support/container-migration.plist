@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- On the first sandboxed launch, macOS moves these into the app's
+         container (~/Library/Containers/local.rubbishnotes.app/Data/...). -->
+    <key>Move</key>
+    <array>
+        <string>${ApplicationSupport}/Rubbish Notes</string>
+        <string>${Library}/Preferences/local.rubbishnotes.app.plist</string>
+    </array>
+</dict>
+</plist>

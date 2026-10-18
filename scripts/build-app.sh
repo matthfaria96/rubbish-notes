@@ -14,6 +14,8 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BIN_DIR/RubbishNotes" "$BUNDLE/Contents/MacOS/RubbishNotes"
 cp Support/Info.plist "$BUNDLE/Contents/Info.plist"
+# Moves notes from before the sandbox into the container on first launch.
+cp Support/container-migration.plist "$BUNDLE/Contents/Resources/container-migration.plist"
 
 # AppIcon is the default (blue); AppIconRed is the alternate icon offered in Settings.
 make_icon() {
@@ -26,8 +28,9 @@ make_icon() {
 make_icon Assets/Logo.png AppIcon 0E1118
 make_icon Assets/LogoRed.png AppIconRed ED0D0D
 
-# Ad-hoc signature with the hardened runtime (blocks DYLD_* injection and unsigned code).
-codesign --force --options runtime --sign - "$BUNDLE"
+# Ad-hoc signature with the hardened runtime (blocks DYLD_* injection and
+# unsigned code) and the App Sandbox entitlements.
+codesign --force --options runtime --entitlements Support/RubbishNotes.entitlements --sign - "$BUNDLE"
 echo "Built $BUNDLE"
 
 if [[ "${1:-}" == "--install" ]]; then

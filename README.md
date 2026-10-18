@@ -15,12 +15,21 @@ The app icon is generated from `Assets/Logo.png` by `scripts/make-icon.swift`. `
 
 ## Where notes live
 
-Everything lives in `~/Library/Application Support/Rubbish Notes/`:
+The app runs in the App Sandbox, so everything lives in its container, `~/Library/Containers/local.rubbishnotes.app/Data/Library/Application Support/Rubbish Notes/`:
 
 - `Notes/` (Inbox), `Archive/` and `Trash/`: one `.txt` file per note. Moving a note between Inbox, Archive and Trash moves its file.
 - `notes-index.json`: box, pinning and dates.
 
+Notes from before the sandbox (in `~/Library/Application Support/Rubbish Notes/`) are moved into the container by macOS on the first sandboxed launch, as listed in `Support/container-migration.plist`.
+
 Trashed notes can be restored until you choose Empty Trash, which deletes them permanently after a confirmation. Edits made to the files in other apps show up in Rubbish Notes, including in-place edits to the open note.
+
+## Security
+
+- App Sandbox (`Support/RubbishNotes.entitlements`): access to its own container, plus files you choose in Open/Save panels or drop on the window, and printing. No network access.
+- Hardened runtime, ad-hoc signed by `scripts/build-app.sh`.
+- Outside edits are never overwritten: if a note's file changed since the app last read or wrote it, the app keeps the other version and saves its own text as "<name> (conflict).txt".
+- Imports: plain text, Markdown, RTF and HTML only, up to 20 MB. File names are cleaned of path separators, control and direction-override characters and leading dots.
 
 ## Design
 
