@@ -11,6 +11,14 @@ scripts/build-app.sh            # builds build/Rubbish Notes.app
 scripts/build-app.sh --install  # also copies it to /Applications
 ```
 
+Tests use Swift Testing, which needs Xcode (the Command Line Tools lack its macros). Point at Xcode without changing the system setting:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
+```
+
+They run against temporary folders and their own preferences, never the real notes.
+
 The app icon is generated from `Assets/Logo.png` by `scripts/make-icon.swift`. `Assets/LogoRed.png` becomes the alternate red icon offered in Settings › General (it swaps the Dock icon and the accent color; Finder keeps the default icon, since changing it would modify the signed bundle).
 
 ## Where notes live

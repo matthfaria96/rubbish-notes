@@ -109,21 +109,25 @@ final class NoteStore: ObservableObject {
     /// Larger files are not imported, and not read when scanning the folders.
     static let maxFileBytes = 20 * 1024 * 1024
 
-    init() {
+    private let defaults: UserDefaults
+
+    /// `rootDir` and `defaults` are injectable so tests can run against a
+    /// temporary folder without touching the real notes.
+    init(rootDir: URL? = nil, defaults: UserDefaults = .standard) {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        rootDir = support.appendingPathComponent("Rubbish Notes", isDirectory: true)
+        self.rootDir = rootDir ?? support.appendingPathComponent("Rubbish Notes", isDirectory: true)
+        self.defaults = defaults
         var dirs: [NoteBox: URL] = [:]
         for box in NoteBox.allCases {
-            let dir = rootDir.appendingPathComponent(box.folderName, isDirectory: true)
+            let dir = self.rootDir.appendingPathComponent(box.folderName, isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             dirs[box] = dir
         }
         self.dirs = dirs
-        indexURL = rootDir.appendingPathComponent("notes-index.json")
+        indexURL = self.rootDir.appendingPathComponent("notes-index.json")
 
         loadIndex()
         reconcile()
-        let defaults = UserDefaults.standard
         if !defaults.bool(forKey: Prefs.didSeed) { seedStarters() }
         defaults.set(true, forKey: Prefs.didSeed)
 
@@ -190,7 +194,7 @@ final class NoteStore: ObservableObject {
         text = (try? String(contentsOf: url(for: notes[i]), encoding: .utf8)) ?? ""
         diskStamp = Self.modificationDate(url(for: notes[i]))
         textVersion += 1
-        UserDefaults.standard.set(id.uuidString, forKey: Prefs.activeNote)
+        defaults.set(id.uuidString, forKey: Prefs.activeNote)
         saveIndex()
         watchActiveFile()
         NotificationCenter.default.post(name: .focusEditor, object: nil)
