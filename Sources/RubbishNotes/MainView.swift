@@ -159,32 +159,6 @@ struct MainView: View {
                 }
                 .help("Find in Note (⌘F)")
 
-                Menu {
-                    Button("Bigger", systemImage: "plus.magnifyingglass") { fontSize = min(fontSize + 1, 32) }
-                    Button("Smaller", systemImage: "minus.magnifyingglass") { fontSize = max(fontSize - 1, 10) }
-                    Button("Actual Size", systemImage: "1.magnifyingglass") { fontSize = Prefs.defaultFontSize }
-                    Divider()
-                    Toggle("Ruled Lines", systemImage: "line.3.horizontal", isOn: $ruled)
-                } label: {
-                    Label("Text Size", systemImage: "textformat.size")
-                }
-                .help("Text Size")
-                .accessibilityLabel("Text Size")
-
-                Menu {
-                    Toggle("Float on Top", systemImage: "macwindow.on.rectangle", isOn: $floatOnTop)
-                    Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
-                    Button("Save a Copy…", systemImage: "square.and.arrow.down") { store.exportActiveWithPanel() }
-                    Button("Print…", systemImage: "printer") {
-                        Printing.print(store.text, font: FontChoice.font(fontName, size: fontSize))
-                    }
-                    Divider()
-                    Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
-                } label: {
-                    Label("More", systemImage: "ellipsis")
-                }
-                .help("More")
-                .accessibilityLabel("More")
             }
         }
     }

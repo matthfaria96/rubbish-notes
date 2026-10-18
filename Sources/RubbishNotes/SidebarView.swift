@@ -190,7 +190,7 @@ struct NoteRow: View {
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) { hoverState.value = hovering }
         }
-        .contextMenu { contextMenu }
+        .contextMenu { contextMenu.labelStyle(.titleAndIcon) }
         .swipeActions(edge: .leading) { leadingSwipe }
         .swipeActions(edge: .trailing) { trailingSwipe }
         .onDrag {

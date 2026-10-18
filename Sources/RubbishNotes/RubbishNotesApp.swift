@@ -42,6 +42,7 @@ struct RubbishNotesApp: App {
     @StateObject private var store = NoteStore.shared
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
     @AppStorage(Prefs.focusMode) private var focusMode = false
+    @AppStorage(Prefs.ruled) private var ruled = false
     @AppStorage(Prefs.fontSize) private var fontSize = Prefs.defaultFontSize
     @AppStorage(Prefs.fontName) private var fontName = FontChoice.defaultName
 
@@ -58,42 +59,48 @@ struct RubbishNotesApp: App {
             TextEditingCommands()
 
             CommandGroup(replacing: .newItem) {
-                Button("New Note") { store.newNote() }
+                Button("New Note", systemImage: "square.and.pencil") { store.newNote() }
                     .keyboardShortcut("n")
-                Button("Open…") { store.importWithPanel() }
+                Button("Open…", systemImage: "doc") { store.importWithPanel() }
                     .keyboardShortcut("o")
             }
             CommandGroup(replacing: .saveItem) {
-                Button("Save a Copy…") { store.exportActiveWithPanel() }
+                Button("Save a Copy…", systemImage: "square.and.arrow.down") { store.exportActiveWithPanel() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
                     .disabled(store.activeID == nil)
             }
             CommandGroup(replacing: .printItem) {
-                Button("Print…") {
+                Button("Print…", systemImage: "printer") {
                     Printing.print(store.text, font: FontChoice.font(fontName, size: fontSize))
                 }
                 .keyboardShortcut("p")
                 .disabled(store.activeID == nil)
             }
+            CommandMenu("Note") {
+                NoteCommands(store: store)
+            }
             CommandGroup(before: .sidebar) {
                 ForEach(Array(NoteBox.allCases.enumerated()), id: \.element) { index, box in
-                    Button(box.title) { store.show(box) }
+                    Button(box.title, systemImage: box.symbol) { store.show(box) }
                         .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")))
                 }
                 Divider()
             }
             CommandGroup(after: .sidebar) {
                 Divider()
-                Button(focusMode ? "Exit Focus Mode" : "Focus Mode") { focusMode.toggle() }
-                    .keyboardShortcut("f", modifiers: [.command, .shift])
-                Button(floatOnTop ? "Stop Floating on Top" : "Float on Top") { floatOnTop.toggle() }
+                Button(focusMode ? "Exit Focus Mode" : "Focus Mode", systemImage: focusMode ? "bolt.fill" : "bolt") {
+                    focusMode.toggle()
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                Toggle(isOn: $floatOnTop) { Label("Float on Top", systemImage: "macwindow.on.rectangle") }
                     .keyboardShortcut("t", modifiers: [.command, .option])
+                Toggle(isOn: $ruled) { Label("Ruled Lines", systemImage: "line.3.horizontal") }
                 Divider()
-                Button("Bigger Text") { fontSize = min(fontSize + 1, 32) }
+                Button("Bigger Text", systemImage: "plus.magnifyingglass") { fontSize = min(fontSize + 1, 32) }
                     .keyboardShortcut("=")
-                Button("Smaller Text") { fontSize = max(fontSize - 1, 10) }
+                Button("Smaller Text", systemImage: "minus.magnifyingglass") { fontSize = max(fontSize - 1, 10) }
                     .keyboardShortcut("-")
-                Button("Actual Size") { fontSize = Prefs.defaultFontSize }
+                Button("Actual Size", systemImage: "1.magnifyingglass") { fontSize = Prefs.defaultFontSize }
                     .keyboardShortcut("0")
             }
         }
@@ -125,5 +132,38 @@ enum Printing {
         view.font = font
         view.sizeToFit()
         NSPrintOperation(view: view, printInfo: info).run()
+    }
+}
+
+/// The menu-bar Note menu: what can be done to the open note in its box.
+private struct NoteCommands: View {
+    @ObservedObject var store: NoteStore
+
+    var body: some View {
+        if let note = store.active {
+            switch note.location {
+            case .trash:
+                Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }
+                Divider()
+                Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) {
+                    store.deletePermanently(note.id)
+                }
+            case .inbox, .archive:
+                if note.location == .inbox {
+                    Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+                        store.togglePin(note.id)
+                    }
+                    Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
+                } else {
+                    Button("Move to Inbox", systemImage: "tray.and.arrow.up") { store.restore(note.id) }
+                }
+                ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
+                Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
+                Divider()
+                Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
+            }
+        } else {
+            Button("No Note Selected") {}.disabled(true)
+        }
     }
 }
