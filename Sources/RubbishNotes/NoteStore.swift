@@ -8,6 +8,8 @@ struct NoteEntry: Codable, Identifiable, Equatable {
     var pinned: Bool
     var pinnedAt: Date?
     var lastOpened: Date
+    /// Fixes the note's place in the list; older indexes may lack it.
+    var createdAt: Date?
 
     var title: String { (fileName as NSString).deletingPathExtension }
 }
@@ -67,7 +69,8 @@ final class NoteStore: ObservableObject {
     }
 
     var recentNotes: [NoteEntry] {
-        notes.filter { !$0.pinned }.sorted { $0.lastOpened > $1.lastOpened }
+        // Newest first, by creation only: opening or editing a note never moves it.
+        notes.filter { !$0.pinned }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
     }
 
     var ordered: [NoteEntry] { pinnedNotes + recentNotes }
@@ -154,7 +157,7 @@ final class NoteStore: ObservableObject {
         let fileName = uniqueFileName(base: name ?? "untitled")
         lastSelfWrite = Date()
         try? content.write(to: notesDir.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
-        let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil, lastOpened: Date())
+        let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil, lastOpened: Date(), createdAt: Date())
         notes.append(entry)
         previews[entry.id] = Self.preview(of: content)
         contents[entry.id] = content
@@ -263,14 +266,20 @@ final class NoteStore: ObservableObject {
     /// Brings the index in line with the .txt files actually in the folder.
     private func reconcile() {
         let fm = FileManager.default
-        let files = (try? fm.contentsOfDirectory(at: notesDir, includingPropertiesForKeys: [.contentModificationDateKey]))?
+        let files = (try? fm.contentsOfDirectory(at: notesDir, includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey]))?
             .filter { $0.pathExtension.lowercased() == "txt" } ?? []
         let names = Set(files.map(\.lastPathComponent))
         notes.removeAll { !names.contains($0.fileName) }
         let known = Set(notes.map(\.fileName))
         for file in files where !known.contains(file.lastPathComponent) {
-            let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
-            notes.append(NoteEntry(id: UUID(), fileName: file.lastPathComponent, pinned: false, pinnedAt: nil, lastOpened: modified))
+            let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+            notes.append(NoteEntry(id: UUID(), fileName: file.lastPathComponent, pinned: false, pinnedAt: nil,
+                                   lastOpened: values?.contentModificationDate ?? Date(), createdAt: values?.creationDate ?? Date()))
+        }
+        // Entries saved before creation dates were tracked take the file's.
+        for i in notes.indices where notes[i].createdAt == nil {
+            let file = url(for: notes[i])
+            notes[i].createdAt = (try? file.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? notes[i].lastOpened
         }
         var freshPreviews: [UUID: String] = [:]
         var freshContents: [UUID: String] = [:]
