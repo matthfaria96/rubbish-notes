@@ -599,51 +599,25 @@ enum Starters {
 
     static let portugueseTitle = "Bem-vindo ao Rubbish Notes"
     static let portugueseText = """
-    👋 Obrigado por usar o Rubbish Notes!
-    Aqui é só você e o texto.
+    Obrigado por usar o Rubbish Notes. 👋
 
-    ✍️ Escreva: tudo é salvo sozinho, em .txt
-    📌 Pin · 🗄️ Archive · 🗑️ Trash (dá para recuperar)
-    ✏️ Passe o mouse numa nota para renomear
-    ⚡️ Focus Mode esconde todo o resto
+    Escreva. Tudo é salvo sozinho.
 
-    ⌨️ Atalhos
-    ⌘N  nova nota
-    ⌘F  buscar · ⌥⌘F substituir
-    ⌘1 ⌘2 ⌘3  Inbox · Archive · Trash
-    ⇧⌘F  Focus Mode
-    ⌘= ⌘-  tamanho do texto
-    ⌘,  ajustes
+    Os atalhos estão nos menus, lá em cima.
+    Temas e aparência ficam em Ajustes (⌘,).
 
-    🎨 Temas: Ajustes › Themes
-    🌓 Aparência e ícone: Ajustes › General
-    🔧 Mudar atalhos: Ajustes do Sistema › Teclado › Atalhos de Teclado › Atalhos de Apps
-
-    Pode apagar esta nota quando quiser. 🗑️
+    Pode apagar esta nota.
     """
 
     static let englishTitle = "Welcome to Rubbish Notes"
     static let englishText = """
-    👋 Thanks for using Rubbish Notes!
-    Just you and the text.
+    Thanks for using Rubbish Notes. 👋
 
-    ✍️ Write: everything saves itself, as .txt
-    📌 Pin · 🗄️ Archive · 🗑️ Trash (you can restore)
-    ✏️ Hover a note to rename it
-    ⚡️ Focus Mode hides everything else
+    Just write. Everything saves itself.
 
-    ⌨️ Shortcuts
-    ⌘N  new note
-    ⌘F  find · ⌥⌘F replace
-    ⌘1 ⌘2 ⌘3  Inbox · Archive · Trash
-    ⇧⌘F  Focus Mode
-    ⌘= ⌘-  text size
-    ⌘,  settings
+    Shortcuts are in the menus at the top.
+    Themes and appearance are in Settings (⌘,).
 
-    🎨 Themes: Settings › Themes
-    🌓 Appearance and icon: Settings › General
-    🔧 Change shortcuts: System Settings › Keyboard › Keyboard Shortcuts › App Shortcuts
-
-    Delete this note whenever you like. 🗑️
+    Delete this note whenever you like.
     """
 }
