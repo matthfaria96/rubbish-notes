@@ -5,10 +5,18 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP_NAME="Rubbish Notes"
-BUNDLE="build/$APP_NAME.app"
+# Absolute: actool runs through a shared agent that resolves relative paths
+# against whatever directory it was first started from.
+BUNDLE="$PWD/build/$APP_NAME.app"
 
-swift build -c release
-BIN_DIR="$(swift build -c release --show-bin-path)"
+# Universal (Apple Silicon + Intel) when the toolchain allows it.
+if swift build -c release --arch arm64 --arch x86_64; then
+    BIN_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
+else
+    echo "Universal build unavailable; building for $(uname -m) only."
+    swift build -c release
+    BIN_DIR="$(swift build -c release --show-bin-path)"
+fi
 
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
@@ -34,8 +42,8 @@ XCODE_DEV="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 if [[ -x "$XCODE_DEV/usr/bin/actool" ]]; then
     DEVELOPER_DIR="$XCODE_DEV" xcrun actool --compile "$BUNDLE/Contents/Resources" \
         --platform macosx --minimum-deployment-target 26.0 --app-icon AppIcon \
-        --output-partial-info-plist build/icon-partial.plist \
-        --errors --warnings Assets/AppIcon.icon >/dev/null
+        --output-partial-info-plist "$PWD/build/icon-partial.plist" \
+        --errors --warnings "$PWD/Assets/AppIcon.icon" >/dev/null
     echo "Icon: layered Assets/AppIcon.icon (Xcode actool)"
 else
     make_icon Assets/Logo.png AppIcon 0E1118
