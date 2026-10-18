@@ -27,7 +27,20 @@ make_icon() {
     swift scripts/make-icon.swift "$logo" "$iconset" "$backdrop"
     iconutil -c icns "$iconset" -o "$BUNDLE/Contents/Resources/$name.icns"
 }
-make_icon Assets/Logo.png AppIcon 0E1118
+# With Xcode, compile the layered macOS 26 icon (Assets/AppIcon.icon: glass,
+# dark and tinted variants) into Assets.car plus an .icns fallback.
+# Without Xcode, fall back to a flat icon rendered from the logo.
+XCODE_DEV="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+if [[ -x "$XCODE_DEV/usr/bin/actool" ]]; then
+    DEVELOPER_DIR="$XCODE_DEV" xcrun actool --compile "$BUNDLE/Contents/Resources" \
+        --platform macosx --minimum-deployment-target 26.0 --app-icon AppIcon \
+        --output-partial-info-plist build/icon-partial.plist \
+        --errors --warnings Assets/AppIcon.icon >/dev/null
+    echo "Icon: layered Assets/AppIcon.icon (Xcode actool)"
+else
+    make_icon Assets/Logo.png AppIcon 0E1118
+    echo "Icon: flat fallback from Assets/Logo.png (Xcode not found)"
+fi
 make_icon Assets/LogoRed.png AppIconRed ED0D0D
 
 # Ad-hoc signature with the hardened runtime (blocks DYLD_* injection and

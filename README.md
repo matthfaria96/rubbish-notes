@@ -19,7 +19,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 They run against temporary folders and their own preferences, never the real notes.
 
-The app icon is generated from `Assets/Logo.png` by `scripts/make-icon.swift`. `Assets/LogoRed.png` becomes the alternate red icon offered in Settings › General (it swaps the Dock icon and the accent color; Finder keeps the default icon, since changing it would modify the signed bundle).
+The app icon is the layered macOS 26 icon `Assets/AppIcon.icon` (open it in Xcode's Icon Composer to edit): a gradient background and the origami as a glass layer, cut out of `Assets/Logo.png` with Vision by `scripts/cutout-subject.swift`. With Xcode installed, `build-app.sh` compiles it with `actool`, which gives macOS the light, dark and tinted versions; without Xcode it falls back to a flat icon rendered from `Assets/Logo.png` by `scripts/make-icon.swift`. `Assets/LogoRed.png` becomes the alternate red icon offered in Settings › General (it swaps the Dock icon and the accent color; Finder keeps the default icon, since changing it would modify the signed bundle).
 
 ## Where notes live
 
