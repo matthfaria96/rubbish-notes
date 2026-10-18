@@ -38,7 +38,8 @@ struct SidebarView: View {
             Button("Empty Trash", role: .destructive) { store.emptyTrash() }
         } message: {
             let count = store.count(in: .trash)
-            Text("\(count) \(count == 1 ? "note" : "notes") will be deleted permanently. You can’t undo this.")
+            Text(count == 1 ? L("1 note will be deleted permanently. You can’t undo this.")
+                            : L("%ld notes will be deleted permanently. You can’t undo this.", count))
         }
         .toolbar(removing: focusMode ? .sidebarToggle : nil)
         .toolbar {
@@ -58,11 +59,11 @@ struct SidebarView: View {
     }
 
     private var sectionTitle: String {
-        if !query.isEmpty { return "Results" }
+        if !query.isEmpty { return L("Results") }
         switch store.box {
-        case .inbox: return "Notes"
-        case .archive: return "Archived"
-        case .trash: return "Deleted"
+        case .inbox: return L("Notes")
+        case .archive: return L("Archived")
+        case .trash: return L("Deleted")
         }
     }
 
@@ -105,7 +106,7 @@ struct SidebarView: View {
             Picker("Show", selection: boxBinding) {
                 ForEach(NoteBox.allCases) { box in
                     Label(box.title, systemImage: box.symbol)
-                        .help("\(box.title) (⌘\(NoteBox.allCases.firstIndex(of: box)! + 1))")
+                        .help("\(box.title) (⌘\(NoteBox.allCases.firstIndex(of: box)! + 1))" as String)
                         .tag(box)
                 }
             }
@@ -165,7 +166,7 @@ struct NoteRow: View {
                     if let modified {
                         Text(Self.dateLabel(modified))
                     }
-                    Text(preview.isEmpty ? "No additional text" : preview)
+                    Text(preview.isEmpty ? L("No additional text") : preview)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -202,7 +203,7 @@ struct NoteRow: View {
     private var contextMenu: some View {
         switch note.location {
         case .inbox:
-            Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+            Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
                 store.togglePin(note.id)
             }
             Button("Rename", systemImage: "pencil", action: startRename)
@@ -229,7 +230,7 @@ struct NoteRow: View {
     private var leadingSwipe: some View {
         switch note.location {
         case .inbox:
-            Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+            Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
                 store.togglePin(note.id)
             }
             .tint(.orange)
@@ -269,7 +270,7 @@ struct NoteRow: View {
     static func dateLabel(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if calendar.isDateInYesterday(date) { return L("Yesterday") }
         if let days = calendar.dateComponents([.day], from: date, to: Date()).day, days < 7 {
             return date.formatted(.dateTime.weekday(.wide))
         }

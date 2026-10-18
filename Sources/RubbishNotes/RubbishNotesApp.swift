@@ -88,7 +88,7 @@ struct RubbishNotesApp: App {
             }
             CommandGroup(after: .sidebar) {
                 Divider()
-                Button(focusMode ? "Exit Focus Mode" : "Focus Mode", systemImage: focusMode ? "bolt.fill" : "bolt") {
+                Button(L(focusMode ? "Exit Focus Mode" : "Focus Mode"), systemImage: focusMode ? "bolt.fill" : "bolt") {
                     focusMode.toggle()
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
@@ -150,7 +150,7 @@ private struct NoteCommands: View {
                 }
             case .inbox, .archive:
                 if note.location == .inbox {
-                    Button(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") {
+                    Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
                         store.togglePin(note.id)
                     }
                     Button("Archive", systemImage: "archivebox") { store.archive(note.id) }

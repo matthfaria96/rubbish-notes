@@ -25,6 +25,9 @@ struct EditorTheme: Identifiable, Equatable {
 
     static func == (a: EditorTheme, b: EditorTheme) -> Bool { a.id == b.id }
 
+    /// Scheme names are proper names; only "Default" is translated.
+    var displayName: String { id == "default" ? L("Default") : name }
+
     static func named(_ id: String) -> EditorTheme { all.first { $0.id == id } ?? .standard }
 
     static let standard = EditorTheme(id: "default", name: "Default", isDark: nil,

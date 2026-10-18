@@ -25,6 +25,8 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
     @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
+    @StateObject private var language = ViewState(AppLanguage.current)
+    @StateObject private var askRestart = ViewState(false)
 
     var body: some View {
         Form {
@@ -44,6 +46,11 @@ private struct GeneralSettings: View {
                 Picker("Appearance", selection: $appearanceRaw) {
                     ForEach(AppearanceChoice.allCases) { choice in
                         Label(choice.title, systemImage: choice.symbol).tag(choice.rawValue)
+                    }
+                }
+                Picker("Language", selection: languageBinding) {
+                    ForEach(AppLanguage.allCases) { choice in
+                        Text(choice.nativeName).tag(choice)
                     }
                 }
                 Toggle("Keep window on top of other apps", isOn: $floatOnTop)
@@ -67,6 +74,20 @@ private struct GeneralSettings: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
+        .alert("Restart Rubbish Notes to use the new language?", isPresented: $askRestart.value) {
+            Button("Restart Now") { AppLanguage.relaunch() }
+            Button("Later", role: .cancel) {}
+        }
+    }
+
+    /// Saving the choice is immediate; macOS applies it when the app next opens.
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(get: { language.value }, set: { choice in
+            guard choice != language.value else { return }
+            language.value = choice
+            choice.apply()
+            askRestart.value = true
+        })
     }
 }
 
@@ -81,7 +102,7 @@ private struct EditorSettings: View {
             Section("Font") {
                 Picker("Typeface", selection: $fontName) {
                     ForEach(FontChoice.all, id: \.self) { name in
-                        Text(name).font(Font(FontChoice.font(name, size: 13))).tag(name)
+                        Text(name == "System" ? L("System") : name).font(Font(FontChoice.font(name, size: 13))).tag(name)
                     }
                 }
                 LabeledContent("Size") {
@@ -129,7 +150,7 @@ private struct IconChoice: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(selected ? style.accent : .clear, lineWidth: 3)
                 )
-                Text(style == .blue ? "\(style.title) (Default)" : style.title)
+                Text(style == .blue ? L("%@ (Default)", style.title) : style.title)
                     .font(.callout)
                     .foregroundStyle(selected ? .primary : .secondary)
             }
@@ -158,9 +179,9 @@ private struct ThemeSettings: View {
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
                     .animation(.easeOut(duration: 0.15), value: previewing.id)
                 HStack {
-                    Text(previewing.name).font(.headline)
+                    Text(previewing.displayName).font(.headline)
                     Spacer()
-                    Text(previewing == selected ? "Current theme" : "Click to apply")
+                    Text(L(previewing == selected ? "Current theme" : "Click to apply"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -205,7 +226,7 @@ private struct ThemeCard: View {
                                           lineWidth: selected ? 2.5 : 1)
                     )
                 HStack(spacing: 4) {
-                    Text(theme.name).lineLimit(1)
+                    Text(theme.displayName).lineLimit(1)
                     if selected {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Color(nsColor: accent))
                     }
@@ -215,7 +236,7 @@ private struct ThemeCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(theme.name)
+        .help(theme.displayName)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

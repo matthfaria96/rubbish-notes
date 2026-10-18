@@ -35,6 +35,10 @@ Trashed notes can be restored until you choose Empty Trash, which deletes them p
 
 Native macOS 26+ look: a `NavigationSplitView` with the system glass sidebar and search, a unified toolbar of SF Symbols in Liquid Glass groups, the system find bar (`NSTextFinder`), a glass capsule for word counts, `ContentUnavailableView` for empty states and a grouped `Form` for Settings. The app icon's color is the only brand color (cursor and accents); everything else uses system colors, so Light, Dark and Automatic all follow Apple's palette.
 
+## Languages
+
+English, Portuguese, Spanish, French, German and Italian, in `Support/Localizations/<lang>.lproj/Localizable.strings`. By default the app follows the Mac's language; Settings › General › Language overrides it for this app and offers to restart, since macOS applies an app's language at launch. The welcome note is written in the app's language.
+
 ## Themes and focus
 
 Settings › Themes previews and applies editor themes: Default (system colors) plus Dracula, Nord, One Dark, Monokai, Tokyo Night, Catppuccin Mocha and Latte, Gruvbox Dark, Rosé Pine, Solarized Dark and Light, and GitHub Light. Hovering a theme previews it; clicking applies it. While Appearance is Automatic, a dark or light theme also sets the window's look.

@@ -12,9 +12,9 @@ enum NoteBox: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .inbox: "Inbox"
-        case .archive: "Archive"
-        case .trash: "Trash"
+        case .inbox: L("box.inbox")
+        case .archive: L("box.archive")
+        case .trash: L("box.trash")
         }
     }
 
@@ -245,7 +245,7 @@ final class NoteStore: ObservableObject {
         contents[copy.id] = text
         modified[copy.id] = Date()
         saveIndex()
-        notice = "Changed in another app. Your version was saved as “\(copy.title)”."
+        notice = L("Changed in another app. Your version was saved as “%@”.", copy.title)
     }
 
     private func showSavedBadge() {
@@ -398,7 +398,7 @@ final class NoteStore: ObservableObject {
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
             guard size <= Self.maxFileBytes else {
                 NSSound.beep()
-                notice = "“\(url.lastPathComponent)” is larger than 20 MB and wasn’t imported."
+                notice = L("“%@” is larger than 20 MB and wasn’t imported.", url.lastPathComponent)
                 continue
             }
             var content: String?
@@ -589,35 +589,7 @@ final class NoteStore: ObservableObject {
     }
 }
 
-/// The welcome note: Portuguese on Portuguese systems, English elsewhere.
-/// Button and menu names stay in English because the app's interface is English.
+/// The welcome note, in the app's language (Localizable.strings).
 enum Starters {
-    static var welcome: (title: String, text: String) {
-        let portuguese = Locale.preferredLanguages.first?.hasPrefix("pt") ?? false
-        return portuguese ? (portugueseTitle, portugueseText) : (englishTitle, englishText)
-    }
-
-    static let portugueseTitle = "Bem-vindo ao Rubbish Notes"
-    static let portugueseText = """
-    Obrigado por usar o Rubbish Notes. 👋
-
-    Escreva. Tudo é salvo sozinho.
-
-    Os atalhos estão nos menus, lá em cima.
-    Temas e aparência ficam em Ajustes (⌘,).
-
-    Pode apagar esta nota.
-    """
-
-    static let englishTitle = "Welcome to Rubbish Notes"
-    static let englishText = """
-    Thanks for using Rubbish Notes. 👋
-
-    Just write. Everything saves itself.
-
-    Shortcuts are in the menus at the top.
-    Themes and appearance are in Settings (⌘,).
-
-    Delete this note whenever you like.
-    """
+    static var welcome: (title: String, text: String) { (L("welcome.title"), L("welcome.text")) }
 }

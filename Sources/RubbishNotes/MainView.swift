@@ -84,7 +84,7 @@ struct MainView: View {
                     theme: theme,
                     accent: iconStyle.accentNS,
                     selection: $selectionState.value,
-                    onRichPaste: { showToast("Formatting Removed") }
+                    onRichPaste: { showToast(L("Formatting Removed")) }
                 )
                 .overlay(alignment: .bottom) {
                     if !focusMode {
@@ -106,9 +106,9 @@ struct MainView: View {
     private var subtitle: String {
         guard let note = store.active else { return "" }
         switch note.location {
-        case .trash: return "In the Trash"
-        case .archive: return store.justSaved ? "Saved" : "Archived"
-        case .inbox: return store.justSaved ? "Saved" : "Plain Text"
+        case .trash: return L("In the Trash")
+        case .archive: return L(store.justSaved ? "Saved" : "Archived")
+        case .inbox: return L(store.justSaved ? "Saved" : "Plain Text")
         }
     }
 
@@ -135,18 +135,18 @@ struct MainView: View {
                     Button {
                         store.togglePin(note.id)
                     } label: {
-                        Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin")
+                        Label(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin")
                     }
-                    .help(note.pinned ? "Unpin Note" : "Pin Note")
+                    .help(L(note.pinned ? "Unpin Note" : "Pin Note"))
                 }
 
                 Button {
                     note.location == .archive ? store.restore(note.id) : store.archive(note.id)
                 } label: {
-                    Label(note.location == .archive ? "Move to Inbox" : "Archive",
+                    Label(L(note.location == .archive ? "Move to Inbox" : "Archive"),
                           systemImage: note.location == .archive ? "tray.and.arrow.up" : "archivebox")
                 }
-                .help(note.location == .archive ? "Move to Inbox" : "Archive Note")
+                .help(L(note.location == .archive ? "Move to Inbox" : "Archive Note"))
 
                 ShareLink(item: store.url(for: note)) {
                     Label("Share", systemImage: "square.and.arrow.up")
@@ -172,10 +172,10 @@ struct MainView: View {
         Button {
             withAnimation(.smooth(duration: 0.3)) { focusMode.toggle() }
         } label: {
-            Label(focusMode ? "Exit Focus Mode" : "Focus Mode", systemImage: focusMode ? "bolt.fill" : "bolt")
+            Label(L(focusMode ? "Exit Focus Mode" : "Focus Mode"), systemImage: focusMode ? "bolt.fill" : "bolt")
         }
         .buttonStyle(FocusButtonStyle(active: focusMode))
-        .help(focusMode ? "Exit Focus Mode (⇧⌘F)" : "Focus Mode (⇧⌘F)")
+        .help(L(focusMode ? "Exit Focus Mode (⇧⌘F)" : "Focus Mode (⇧⌘F)"))
     }
 
     // MARK: Glass overlays
@@ -204,14 +204,14 @@ struct MainView: View {
         let characters = hasSelection ? selection.characters : store.text.count
         let minutes = max(1, Int((Double(words) / 220).rounded()))
         return HStack(spacing: 6) {
-            Text("\(words) \(words == 1 ? "word" : "words")")
+            Text(words == 1 ? L("1 word") : L("%ld words", words))
             Text("·").foregroundStyle(.tertiary)
-            Text("\(characters) \(characters == 1 ? "character" : "characters")")
+            Text(characters == 1 ? L("1 character") : L("%ld characters", characters))
             if hasSelection {
                 Text("selected").foregroundStyle(iconStyle.accent)
             } else if words > 0 {
                 Text("·").foregroundStyle(.tertiary)
-                Text("\(minutes) min read")
+                Text(L("%ld min read", minutes))
             }
         }
         .font(.callout)

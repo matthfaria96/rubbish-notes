@@ -10,8 +10,8 @@ enum IconStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .blue: "Blue"
-        case .red: "Red"
+        case .blue: L("Blue")
+        case .red: L("Red")
         }
     }
 
@@ -59,9 +59,9 @@ enum AppearanceChoice: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: "Automatic"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .system: L("Automatic")
+        case .light: L("Light")
+        case .dark: L("Dark")
         }
     }
 

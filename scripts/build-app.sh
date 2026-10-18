@@ -16,6 +16,8 @@ cp "$BIN_DIR/RubbishNotes" "$BUNDLE/Contents/MacOS/RubbishNotes"
 cp Support/Info.plist "$BUNDLE/Contents/Info.plist"
 # Moves notes from before the sandbox into the container on first launch.
 cp Support/container-migration.plist "$BUNDLE/Contents/Resources/container-migration.plist"
+# Translations: one <lang>.lproj per language.
+cp -R Support/Localizations/*.lproj "$BUNDLE/Contents/Resources/"
 
 # AppIcon is the default (blue); AppIconRed is the alternate icon offered in Settings.
 make_icon() {
