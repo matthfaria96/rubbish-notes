@@ -3,7 +3,8 @@ import SwiftUI
 
 struct SidebarView: View {
     @EnvironmentObject private var store: NoteStore
-    let query: String
+    @Binding var query: String
+    @StateObject private var renaming = ViewState<UUID?>(nil)
     @StateObject private var confirmEmpty = ViewState(false)
     @StateObject private var confirmClear = ViewState(false)
     @AppStorage(Prefs.focusMode) private var focusMode = false
@@ -30,6 +31,8 @@ struct SidebarView: View {
                 if query.isEmpty { emptyBox } else { ContentUnavailableView.search(text: query) }
             }
         }
+        // Stays put at the top while only the notes scroll beneath it.
+        .safeAreaInset(edge: .top, spacing: 0) { searchField }
         .safeAreaInset(edge: .bottom, spacing: 0) { boxSwitcher }
         .onDeleteCommand {
             guard let id = store.activeID, store.box != .trash else { return }
@@ -132,6 +135,27 @@ struct SidebarView: View {
         .padding(.vertical, 12)
     }
 
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search", text: $query)
+                .textFieldStyle(.plain)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+    }
+
     /// Quiet on purpose: a small floating chip, and it always asks first.
     private var clearInboxButton: some View {
         HStack {
@@ -153,7 +177,8 @@ struct SidebarView: View {
         NoteRow(
             note: note,
             preview: store.previews[note.id] ?? "",
-            modified: note.location == .trash ? note.trashedAt : store.modified[note.id]
+            modified: note.location == .trash ? note.trashedAt : store.modified[note.id],
+            renamingID: $renaming.value
         )
         .tag(note.id)
     }
@@ -164,15 +189,20 @@ struct NoteRow: View {
     let note: NoteEntry
     let preview: String
     let modified: Date?
+    @Binding var renamingID: UUID?
     @AppStorage(Prefs.sidebarStatus) private var sidebarStatus = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
                 if sidebarStatus { StatusMark(status: note.currentStatus) }
-                Text(note.title)
-                    .font(.body.weight(.semibold))
-                    .lineLimit(1)
+                if renamingID == note.id {
+                    RenameField(initial: note.title, onCommit: commitRename, onCancel: { renamingID = nil })
+                } else {
+                    Text(note.title)
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
+                }
             }
             HStack(spacing: 6) {
                 if let modified {
@@ -196,6 +226,8 @@ struct NoteRow: View {
     private var contextMenu: some View {
         switch note.location {
         case .inbox:
+            renameItem
+            Divider()
             Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
                 store.togglePin(note.id)
             }
@@ -206,6 +238,8 @@ struct NoteRow: View {
             Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
             Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
         case .archive:
+            renameItem
+            Divider()
             Button("Move to Inbox", systemImage: "tray.and.arrow.up") { store.restore(note.id) }
             ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
@@ -216,6 +250,17 @@ struct NoteRow: View {
             Divider()
             Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
         }
+    }
+
+    private var renameItem: some View {
+        Button("Change Name", systemImage: "pencil") { renamingID = note.id }
+    }
+
+    private func commitRename(_ text: String) {
+        guard renamingID == note.id else { return }
+        renamingID = nil
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !clean.isEmpty, clean != note.title { store.rename(note.id, to: clean) }
     }
 
     private var statusMenu: some View {

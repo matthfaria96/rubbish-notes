@@ -256,3 +256,39 @@ struct ImageLightbox: View {
         }
     }
 }
+
+/// The images corner before there are any: shows where they will live and how to add them.
+struct ImagesHintButton: View {
+    let onChoose: () -> Void
+    @StateObject private var open = ViewState(false)
+
+    var body: some View {
+        Button { open.value.toggle() } label: {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .compatGlass(in: Capsule())
+        .help("Images: paste or drop them here")
+        .popover(isPresented: $open.value, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Images", systemImage: "photo.on.rectangle.angled").font(.headline)
+                Text("Paste an image (⌘V) or drop one on the note. It stays here in this corner, never inside your text.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Choose Images…", systemImage: "plus") {
+                    open.value = false
+                    onChoose()
+                }
+                .compatGlassProminentButtonStyle()
+            }
+            .padding(14)
+            .frame(width: 280)
+        }
+    }
+}

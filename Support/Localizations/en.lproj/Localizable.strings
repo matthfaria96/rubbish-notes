@@ -108,6 +108,15 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Copy Block";
 "Delete Block" = "Delete Block";
+"Change Name" = "Change Name";
+"Click to rename" = "Click to rename";
+"Clear" = "Clear";
+"Copy" = "Copy";
+"Copied" = "Copied";
+"Images" = "Images";
+"Images: paste or drop them here" = "Images: paste or drop them here";
+"Paste an image (⌘V) or drop one on the note. It stays here in this corner, never inside your text." = "Paste an image (⌘V) or drop one on the note. It stays here in this corner, never inside your text.";
+"Choose Images…" = "Choose Images…";
 "Close" = "Close";
 "Delete this image?" = "Delete this image?";
 "Delete %ld images?" = "Delete %ld images?";

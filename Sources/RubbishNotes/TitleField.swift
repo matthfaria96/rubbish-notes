@@ -5,7 +5,6 @@ import SwiftUI
 /// Return or clicking away saves, Esc puts the old name back.
 struct TitleField: View {
     let title: String
-    let subtitle: String
     let editable: Bool
     /// Room the title may take, so the buttons after it stay at the far end.
     let width: CGFloat
@@ -13,34 +12,32 @@ struct TitleField: View {
     @StateObject private var draft = ViewState<String?>(nil)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let text = draft.value {
-                RenameField(initial: text, onCommit: commit, onCancel: cancel)
-            } else {
-                Button(action: begin) {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(editable ? L("Rename Note") : "")
-            }
-            if !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.subheadline)
+        HStack(spacing: 6) {
+            if editable {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
+            }
+            if let text = draft.value {
+                RenameField(initial: text, bold: true, onCommit: commit, onCancel: cancel)
+            } else {
+                Text(title)
+                    .font(.headline)
                     .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .frame(width: width, alignment: .leading)
-        .padding(.horizontal, 6)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: begin)
+        .help(editable ? L("Click to rename") : "")
         .onChange(of: title) { draft.value = nil }
     }
 
     private func begin() {
-        guard editable else { return }
+        guard editable, draft.value == nil else { return }
         draft.value = title
     }
 
@@ -60,8 +57,9 @@ struct TitleField: View {
 
 /// An AppKit field, because SwiftUI focus doesn't reach into the toolbar:
 /// it takes the keyboard itself and selects the whole name.
-private struct RenameField: NSViewRepresentable {
+struct RenameField: NSViewRepresentable {
     let initial: String
+    var bold = false
     let onCommit: (String) -> Void
     let onCancel: () -> Void
 
@@ -70,15 +68,23 @@ private struct RenameField: NSViewRepresentable {
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
-        field.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
+        field.font = bold ? .boldSystemFont(ofSize: NSFont.systemFontSize) : .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         field.lineBreakMode = .byTruncatingTail
         field.cell?.isScrollable = true
         field.delegate = context.coordinator
-        DispatchQueue.main.async {
-            field.window?.makeFirstResponder(field)
-            field.currentEditor()?.selectAll(nil)
-        }
+        // A closing context menu hands focus back late, so ask again until it sticks.
+        Self.takeFocus(field, tries: 6)
         return field
+    }
+
+    private static func takeFocus(_ field: NSTextField, tries: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            guard let window = field.window else { return }
+            if field.currentEditor() == nil, window.makeFirstResponder(field) {
+                field.currentEditor()?.selectAll(nil)
+            }
+            if tries > 1 { takeFocus(field, tries: tries - 1) }
+        }
     }
 
     func updateNSView(_ field: NSTextField, context: Context) {

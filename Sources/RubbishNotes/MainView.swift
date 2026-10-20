@@ -37,12 +37,11 @@ struct MainView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns.value) {
-            SidebarView(query: searchState.value)
+            SidebarView(query: $searchState.value)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 380)
         } detail: {
             detail
         }
-        .searchable(text: $searchState.value, placement: .sidebar, prompt: "Search")
         .toolbar(removing: focusMode ? .sidebarToggle : nil)
         .onChange(of: focusMode, initial: true) {
             withAnimation(.smooth(duration: 0.3)) { columns.value = focusMode ? .detailOnly : .all }
@@ -127,30 +126,22 @@ struct MainView: View {
         .navigationTitle(store.active?.title ?? "Rubbish Notes")
         .toolbar(removing: .title)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                TitleField(
-                    title: store.active?.title ?? "Rubbish Notes",
-                    subtitle: focusMode ? "" : subtitle,
-                    editable: store.active.map { $0.location != .trash } ?? false,
-                    // Leaves room for the buttons on the right (fewer in focus mode).
-                    width: max(120, detailWidth.value - (focusMode ? 90 : 300))
-                ) { newTitle in
-                    if let id = store.activeID { store.rename(id, to: newTitle) }
+            if !focusMode {
+                ToolbarItem(placement: .navigation) {
+                    TitleField(
+                        title: store.active?.title ?? "Rubbish Notes",
+                        editable: store.active.map { $0.location != .trash } ?? false,
+                        // Leaves room for the buttons on the right, so none spill into ».
+                        width: min(440, max(120, detailWidth.value - 340))
+                    ) { newTitle in
+                        if let id = store.activeID { store.rename(id, to: newTitle) }
+                    }
                 }
             }
             if !focusMode { detailToolbar }
             ToolbarItem(placement: .primaryAction) { focusButton }
         }
         .animation(.smooth(duration: 0.25), value: toastState.value)
-    }
-
-    private var subtitle: String {
-        guard let note = store.active else { return "" }
-        switch note.location {
-        case .trash: return L("In the Trash")
-        case .archive: return L(store.justSaved ? "Saved" : "Archived")
-        case .inbox: return L(store.justSaved ? "Saved" : "Plain Text")
-        }
     }
 
     @ToolbarContentBuilder
@@ -215,9 +206,19 @@ struct MainView: View {
         Button {
             withAnimation(.smooth(duration: 0.3)) { focusMode.toggle() }
         } label: {
-            Label(L(focusMode ? "Exit Focus Mode" : "Focus Mode"), systemImage: focusMode ? "bolt.fill" : "bolt")
+            // On: a filled bolt with a small green light.
+            Image(systemName: focusMode ? "bolt.fill" : "bolt")
+                .overlay(alignment: .topTrailing) {
+                    if focusMode {
+                        Circle()
+                            .fill(Color.green.gradient)
+                            .frame(width: 7, height: 7)
+                            .shadow(color: .green.opacity(0.8), radius: 3)
+                            .offset(x: 5, y: -3)
+                    }
+                }
+                .accessibilityLabel(L(focusMode ? "Exit Focus Mode" : "Focus Mode"))
         }
-        .buttonStyle(FocusButtonStyle(active: focusMode))
         .help(L(focusMode ? "Exit Focus Mode (⇧⌘F)" : "Focus Mode (⇧⌘F)"))
     }
 
@@ -277,7 +278,13 @@ struct MainView: View {
     private var attachmentStrip: some View {
         if !focusMode, let id = store.activeID {
             let urls = store.attachmentURLs(of: id)
-            if !urls.isEmpty {
+            if urls.isEmpty {
+                if !isTrashed {
+                    ImagesHintButton(onChoose: chooseImages)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 14)
+                }
+            } else {
                 AttachmentShelf(urls: urls) { url in
                     withAnimation(ImageLightbox.motion) { lightbox.value = url }
                 }
@@ -332,6 +339,14 @@ struct MainView: View {
                 lightbox.value = rest[min(position, rest.count - 1)]
             }
         }
+    }
+
+    private func chooseImages() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.image]
+        guard panel.runModal() == .OK else { return }
+        if !attachImages(panel.urls, nil) { NSSound.beep() }
     }
 
     /// Images go to the open note's footer, never into its text.
@@ -416,20 +431,6 @@ struct WindowConfigurator: NSViewRepresentable {
         window.level = floatOnTop ? .floating : .normal
         NoteStore.shared.undoManager = window.undoManager
         window.tabbingMode = .disallowed
-    }
-}
-
-/// The focus toggle shows the accent-filled glass while focus mode is on.
-private struct FocusButtonStyle: PrimitiveButtonStyle {
-    let active: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        if active {
-            Button(role: configuration.role, action: configuration.trigger) { configuration.label }
-                .compatGlassProminentButtonStyle()
-        } else {
-            Button(role: configuration.role, action: configuration.trigger) { configuration.label }
-        }
     }
 }
 
