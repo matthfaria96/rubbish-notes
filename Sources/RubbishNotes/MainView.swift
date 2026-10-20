@@ -148,14 +148,16 @@ struct MainView: View {
         .toolbar(removing: .title)
         .toolbar {
             if !focusMode {
-                ToolbarItem(placement: .navigation) {
-                    TitleField(
-                        title: store.active?.title ?? "Rubbish Notes",
-                        editable: store.active.map { $0.location != .trash } ?? false,
-                        // Leaves room for the buttons on the right, so none spill into ».
-                        width: min(440, max(120, detailWidth.value - 340))
-                    ) { newTitle in
-                        if let id = store.activeID { store.rename(id, to: newTitle) }
+                if #available(macOS 26, *) {
+                    // Plain text on the bar, not a glass pill; a flexible space
+                    // then carries the buttons to the far edge.
+                    ToolbarItem(placement: .navigation) { titleField(width: nil) }
+                        .sharedBackgroundVisibility(.hidden)
+                    ToolbarSpacer(.flexible, placement: .primaryAction)
+                } else {
+                    // Leaves room for the buttons on the right, so none spill into ».
+                    ToolbarItem(placement: .navigation) {
+                        titleField(width: min(440, max(120, detailWidth.value - 340)))
                     }
                 }
             }
@@ -163,6 +165,16 @@ struct MainView: View {
             ToolbarItem(placement: .primaryAction) { focusButton }
         }
         .animation(.smooth(duration: 0.25), value: toastState.value)
+    }
+
+    private func titleField(width: CGFloat?) -> some View {
+        TitleField(
+            title: store.active?.title ?? "Rubbish Notes",
+            editable: store.active.map { $0.location != .trash } ?? false,
+            width: width
+        ) { newTitle in
+            if let id = store.activeID { store.rename(id, to: newTitle) }
+        }
     }
 
     @ToolbarContentBuilder

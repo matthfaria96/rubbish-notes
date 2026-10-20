@@ -26,6 +26,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .compatHardBottomEdge()
         .overlay {
             if pinned.isEmpty && others.isEmpty {
                 if query.isEmpty { emptyBox } else { ContentUnavailableView.search(text: query) }
@@ -148,9 +149,9 @@ struct SidebarView: View {
                 .help("Clear")
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.secondary.opacity(0.12), in: Capsule())
         .padding(.horizontal, 10)
         .padding(.top, 4)
         .padding(.bottom, 6)

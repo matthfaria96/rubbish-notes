@@ -7,7 +7,8 @@ struct TitleField: View {
     let title: String
     let editable: Bool
     /// Room the title may take, so the buttons after it stay at the far end.
-    let width: CGFloat
+    /// nil hugs the name (up to a limit) and lets the bar lay out the rest.
+    let width: CGFloat?
     let onRename: (String) -> Void
     @StateObject private var draft = ViewState<String?>(nil)
 
@@ -24,12 +25,14 @@ struct TitleField: View {
                 Text(title)
                     .font(.headline)
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: width == nil ? 320 : .infinity, alignment: .leading)
+                    .fixedSize(horizontal: width == nil, vertical: false)
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .frame(width: width, alignment: .leading)
+        .frame(maxWidth: width == nil ? 340 : nil, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture(perform: begin)
         .help(editable ? L("Click to rename") : "")

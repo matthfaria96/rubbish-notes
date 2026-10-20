@@ -265,13 +265,10 @@ struct ImagesHintButton: View {
         Button { open.toggle() } label: {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.callout)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .contentShape(Capsule())
+                .foregroundStyle(open ? Color.accentColor : .secondary)
+                .modifier(LegacyFooterPadding())
         }
-        .buttonStyle(.plain)
-        .compatGlass(in: Capsule())
+        .compatFooterButton()
         .help("Images: paste or drop them here")
     }
 }

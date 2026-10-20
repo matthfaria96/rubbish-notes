@@ -21,6 +21,13 @@ fi
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BIN_DIR/RubbishNotes" "$BUNDLE/Contents/MacOS/RubbishNotes"
+# SwiftPM records the deployment target as the SDK version, which makes newer
+# macOS run the app in its old look (no Liquid Glass). Stamp the real SDK.
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)"
+if [ -n "$SDK_VERSION" ]; then
+    vtool -set-build-version macos 15.0 "$SDK_VERSION" -replace \
+        -output "$BUNDLE/Contents/MacOS/RubbishNotes" "$BUNDLE/Contents/MacOS/RubbishNotes"
+fi
 cp Support/Info.plist "$BUNDLE/Contents/Info.plist"
 # Moves notes from before the sandbox into the container on first launch.
 cp Support/container-migration.plist "$BUNDLE/Contents/Resources/container-migration.plist"
