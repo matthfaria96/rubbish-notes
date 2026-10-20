@@ -20,6 +20,8 @@ struct MainView: View {
     @StateObject private var searchState = ViewState("")
     @StateObject private var columns = ViewState(NavigationSplitViewVisibility.all)
     @StateObject private var detailWidth = ViewState<CGFloat>(600)
+    @StateObject private var blocksOpen = ViewState(false)
+    @StateObject private var imagesHintOpen = ViewState(false)
     @StateObject private var lightbox = ViewState<URL?>(nil)
     /// Images waiting for the delete confirmation.
     @StateObject private var pendingDelete = ViewState<[URL]>([])
@@ -103,11 +105,28 @@ struct MainView: View {
                 }
                 .overlay(alignment: .bottomLeading) {
                     if !focusMode, !isTrashed, let id = store.activeID {
-                        BlocksButton(noteID: id)
+                        BlocksButton(noteID: id, open: $blocksOpen.value)
                             .padding(.leading, 16)
                             .padding(.bottom, 14)
                     }
                 }
+                .overlay(alignment: .bottomLeading) {
+                    if blocksOpen.value, !focusMode, !isTrashed, let id = store.activeID {
+                        BlocksPanel(noteID: id) { blocksOpen.value = false }
+                            .footerPanel(edge: .leading, isPresented: $blocksOpen.value)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if imagesHintOpen.value, !focusMode, !isTrashed {
+                        ImagesHintPanel(onChoose: chooseImages) { imagesHintOpen.value = false }
+                            .footerPanel(edge: .trailing, isPresented: $imagesHintOpen.value)
+                    }
+                }
+                // One corner panel at a time.
+                .onChange(of: blocksOpen.value) { if blocksOpen.value { imagesHintOpen.value = false } }
+                .onChange(of: imagesHintOpen.value) { if imagesHintOpen.value { blocksOpen.value = false } }
+                .animation(.spring(duration: 0.28, bounce: 0.1), value: blocksOpen.value)
+                .animation(.spring(duration: 0.28, bounce: 0.1), value: imagesHintOpen.value)
                 .overlay(alignment: .bottomTrailing) { attachmentStrip }
             }
         }
@@ -116,6 +135,8 @@ struct MainView: View {
         .overlay(alignment: .top) { toast }
         .onChange(of: store.activeID) {
             lightbox.value = nil
+            blocksOpen.value = false
+            imagesHintOpen.value = false
         }
         .confirmationDialog(deleteTitle, isPresented: deleteBinding) {
             Button(L("Delete"), role: .destructive) { confirmDelete() }
@@ -280,7 +301,7 @@ struct MainView: View {
             let urls = store.attachmentURLs(of: id)
             if urls.isEmpty {
                 if !isTrashed {
-                    ImagesHintButton(onChoose: chooseImages)
+                    ImagesHintButton(open: $imagesHintOpen.value)
                         .padding(.trailing, 16)
                         .padding(.bottom, 14)
                 }
@@ -353,7 +374,10 @@ struct MainView: View {
     private func attachImages(_ files: [URL], _ data: Data?) -> Bool {
         guard store.activeID != nil, !isTrashed else { return false }
         let attached = files.isEmpty ? data.map { store.attachImageData($0) } ?? false : store.attachImageFiles(files)
-        if attached { showToast(L("Image kept in the footer")) }
+        if attached {
+            imagesHintOpen.value = false
+            showToast(L("Image kept in the footer"))
+        }
         return attached
     }
 

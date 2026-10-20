@@ -6,11 +6,11 @@ import SwiftUI
 struct BlocksButton: View {
     @EnvironmentObject private var store: NoteStore
     let noteID: UUID
-    @StateObject private var open = ViewState(false)
+    @Binding var open: Bool
 
     var body: some View {
         let count = store.blocks(of: noteID).count
-        Button { open.value.toggle() } label: {
+        Button { open.toggle() } label: {
             HStack(spacing: 5) {
                 Image(systemName: "square.stack.3d.up")
                 if count > 0 { Text("\(count)").monospacedDigit() }
@@ -24,10 +24,7 @@ struct BlocksButton: View {
         .buttonStyle(.plain)
         .compatGlass(in: Capsule())
         .help("Blocks: long texts kept apart from the note")
-        // Opens upward, out of the button.
-        .popover(isPresented: $open.value, arrowEdge: .bottom) {
-            BlocksPanel(noteID: noteID)
-        }
+
     }
 }
 
@@ -36,6 +33,7 @@ struct BlocksPanel: View {
     static let size = CGSize(width: 440, height: 520)
     @EnvironmentObject private var store: NoteStore
     let noteID: UUID
+    let onClose: () -> Void
 
     var body: some View {
         let blocks = store.blocks(of: noteID)
@@ -47,6 +45,11 @@ struct BlocksPanel: View {
                     .help("New block from the clipboard")
                 Button("New", systemImage: "plus") { store.addBlock(to: noteID) }
                     .help("New empty block")
+                Button(action: onClose) { Image(systemName: "xmark") }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+                    .help("Close")
             }
             .labelStyle(.titleAndIcon)
             .padding(14)

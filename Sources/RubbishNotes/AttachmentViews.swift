@@ -257,13 +257,12 @@ struct ImageLightbox: View {
     }
 }
 
-/// The images corner before there are any: shows where they will live and how to add them.
+/// The images corner before there are any: shows where they will live.
 struct ImagesHintButton: View {
-    let onChoose: () -> Void
-    @StateObject private var open = ViewState(false)
+    @Binding var open: Bool
 
     var body: some View {
-        Button { open.value.toggle() } label: {
+        Button { open.toggle() } label: {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -274,21 +273,35 @@ struct ImagesHintButton: View {
         .buttonStyle(.plain)
         .compatGlass(in: Capsule())
         .help("Images: paste or drop them here")
-        .popover(isPresented: $open.value, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 10) {
+    }
+}
+
+/// How to add images, opened from the empty images corner.
+struct ImagesHintPanel: View {
+    let onChoose: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
                 Label("Images", systemImage: "photo.on.rectangle.angled").font(.headline)
-                Text("Paste an image (⌘V) or drop one on the note. It stays here in this corner, never inside your text.")
-                    .font(.callout)
+                Spacer()
+                Button(action: onClose) { Image(systemName: "xmark") }
+                    .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Choose Images…", systemImage: "plus") {
-                    open.value = false
-                    onChoose()
-                }
-                .compatGlassProminentButtonStyle()
+                    .help("Close")
             }
-            .padding(14)
-            .frame(width: 280)
+            Text("Paste an image (⌘V) or drop one on the note. It stays here in this corner, never inside your text.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Choose Images…", systemImage: "plus") {
+                onClose()
+                onChoose()
+            }
+            .compatGlassProminentButtonStyle()
         }
+        .padding(14)
+        .frame(width: 280)
     }
 }
