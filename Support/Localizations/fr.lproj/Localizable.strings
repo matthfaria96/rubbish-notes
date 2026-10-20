@@ -67,6 +67,15 @@
 "Moved to Inbox" = "Déplacée vers Réception";
 "No Note" = "Aucune note";
 "Create a note or drop a text file here." = "Créez une note ou déposez un fichier texte ici.";
+"Open" = "Ouverte";
+"In Progress" = "En cours";
+"Done" = "Terminée";
+"Status" = "Statut";
+"Status: %@ — click to change" = "Statut : %@ — cliquez pour changer";
+"Image kept in the footer" = "Image gardée en bas";
+"Open Image" = "Ouvrir l’image";
+"Remove Image" = "Retirer l’image";
+"Rename Note (or double-click the title)" = "Renommer (ou double-cliquez sur le titre)";
 "Formatting Removed" = "Mise en forme supprimée";
 "This note is in the Trash." = "Cette note est dans la corbeille.";
 "In the Trash" = "Dans la corbeille";

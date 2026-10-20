@@ -20,6 +20,7 @@ struct SidebarView: View {
             if !others.isEmpty {
                 Section(sectionTitle) {
                     ForEach(others) { row($0) }
+                        .onMove(perform: canReorder ? { store.reorder(others.map(\.id), from: $0, to: $1) } : nil)
                 }
             }
         }
@@ -57,6 +58,9 @@ struct SidebarView: View {
                 }
                 .help("New Note (⌘N)")
     }
+
+    /// Dragging sets the order of the whole box, so not while searching or in the Trash.
+    private var canReorder: Bool { query.isEmpty && store.box != .trash }
 
     private var sectionTitle: String {
         if !query.isEmpty { return L("Results") }
@@ -99,7 +103,7 @@ struct SidebarView: View {
                     Label("Empty Trash", systemImage: "trash.slash")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .compatGlassButtonStyle()
                 .controlSize(.large)
                 .help("Delete every note in the Trash permanently")
             }
@@ -123,7 +127,8 @@ struct SidebarView: View {
             note: note,
             preview: store.previews[note.id] ?? "",
             modified: note.location == .trash ? note.trashedAt : store.modified[note.id],
-            renamingID: $renaming.value
+            renamingID: $renaming.value,
+            selected: store.activeID == note.id
         )
         .tag(note.id)
     }
@@ -135,6 +140,7 @@ struct NoteRow: View {
     let preview: String
     let modified: Date?
     @Binding var renamingID: UUID?
+    let selected: Bool
     @StateObject private var draftState = ViewState("")
     @StateObject private var hoverState = ViewState(false)
     @FocusState private var nameFocused: Bool
@@ -158,9 +164,13 @@ struct NoteRow: View {
                         }
                         .onChange(of: nameFocused) { if !nameFocused, isRenaming { commitRename() } }
                 } else {
-                    Text(note.title)
-                        .font(.body.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        StatusMark(status: note.currentStatus)
+                        Text(note.title)
+                            .font(.body.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .simultaneousGesture(TapGesture(count: 2).onEnded(startRename))
                 }
                 HStack(spacing: 6) {
                     if let modified {
@@ -173,15 +183,17 @@ struct NoteRow: View {
                 .font(.subheadline)
             }
             Spacer(minLength: 0)
-            if hoverState.value && canRename && !isRenaming {
+            if (hoverState.value || selected) && canRename && !isRenaming {
                 Button(action: startRename) {
                     Image(systemName: "pencil")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 30, height: 30)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.glass)
+                .compatGlassButtonStyle()
                 .buttonBorderShape(.circle)
-                .controlSize(.small)
-                .help("Rename Note")
+                .controlSize(.regular)
+                .help("Rename Note (or double-click the title)")
                 .accessibilityLabel("Rename")
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
@@ -194,9 +206,6 @@ struct NoteRow: View {
         .contextMenu { contextMenu.labelStyle(.titleAndIcon) }
         .swipeActions(edge: .leading) { leadingSwipe }
         .swipeActions(edge: .trailing) { trailingSwipe }
-        .onDrag {
-            NSItemProvider(contentsOf: store.url(for: note)) ?? NSItemProvider()
-        }
     }
 
     @ViewBuilder
@@ -207,6 +216,7 @@ struct NoteRow: View {
                 store.togglePin(note.id)
             }
             Button("Rename", systemImage: "pencil", action: startRename)
+            statusMenu
             ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
             Divider()
@@ -223,6 +233,14 @@ struct NoteRow: View {
             Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }
             Divider()
             Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
+        }
+    }
+
+    private var statusMenu: some View {
+        Menu(L("Status"), systemImage: "circle.fill") {
+            ForEach(NoteStatus.allCases) { status in
+                Button(status.title) { store.setStatus(note.id, status) }
+            }
         }
     }
 

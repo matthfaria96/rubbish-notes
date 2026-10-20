@@ -67,6 +67,15 @@
 "Moved to Inbox" = "Moved to Inbox";
 "No Note" = "No Note";
 "Create a note or drop a text file here." = "Create a note or drop a text file here.";
+"Open" = "Open";
+"In Progress" = "In Progress";
+"Done" = "Done";
+"Status" = "Status";
+"Status: %@ — click to change" = "Status: %@ — click to change";
+"Image kept in the footer" = "Image kept in the footer";
+"Open Image" = "Open Image";
+"Remove Image" = "Remove Image";
+"Rename Note (or double-click the title)" = "Rename Note (or double-click the title)";
 "Formatting Removed" = "Formatting Removed";
 "This note is in the Trash." = "This note is in the Trash.";
 "In the Trash" = "In the Trash";

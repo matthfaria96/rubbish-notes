@@ -67,6 +67,15 @@
 "Moved to Inbox" = "In Eingang bewegt";
 "No Note" = "Keine Notiz";
 "Create a note or drop a text file here." = "Erstelle eine Notiz oder lege hier eine Textdatei ab.";
+"Open" = "Offen";
+"In Progress" = "In Arbeit";
+"Done" = "Erledigt";
+"Status" = "Status";
+"Status: %@ — click to change" = "Status: %@ – zum Ändern klicken";
+"Image kept in the footer" = "Bild unten abgelegt";
+"Open Image" = "Bild öffnen";
+"Remove Image" = "Bild entfernen";
+"Rename Note (or double-click the title)" = "Umbenennen (oder Titel doppelklicken)";
 "Formatting Removed" = "Formatierung entfernt";
 "This note is in the Trash." = "Diese Notiz ist im Papierkorb.";
 "In the Trash" = "Im Papierkorb";

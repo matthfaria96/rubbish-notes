@@ -54,6 +54,12 @@ struct NoteEntry: Codable, Identifiable, Equatable {
     var trashedAt: Date?
     /// Created without a name: the title follows the note's first line.
     var autoNamed: Bool?
+    /// nil means open.
+    var status: NoteStatus?
+    /// Place set by dragging in the sidebar; nil keeps creation order, above ranked notes.
+    var rank: Double?
+    /// Image file names in the note's attachment folder, oldest first.
+    var attachments: [String]?
 
     var title: String { (fileName as NSString).deletingPathExtension }
     var location: NoteBox { box ?? .inbox }
@@ -65,6 +71,7 @@ struct NoteEntry: Codable, Identifiable, Equatable {
 final class NoteStore: ObservableObject {
     static let shared = NoteStore()
 
+    /// Writable from the NoteStore extensions through `updateNote`.
     @Published private(set) var notes: [NoteEntry] = []
     @Published private(set) var activeID: UUID?
     @Published private(set) var text = "" { didSet { recount() } }
@@ -153,7 +160,33 @@ final class NoteStore: ObservableObject {
         if box == .trash {
             return inBox.sorted { ($0.trashedAt ?? .distantPast) > ($1.trashedAt ?? .distantPast) }
         }
-        return inBox.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        return inBox.sorted(by: Self.listOrder)
+    }
+
+    /// Unranked (new) notes first, newest first; then the order set by dragging.
+    static func listOrder(_ a: NoteEntry, _ b: NoteEntry) -> Bool {
+        switch (a.rank, b.rank) {
+        case let (x?, y?) where x != y: return x < y
+        case (nil, _?): return true
+        case (_?, nil): return false
+        default: return (a.createdAt ?? .distantPast) > (b.createdAt ?? .distantPast)
+        }
+    }
+
+    /// Applies `change` to one entry and saves the index.
+    func updateNote(_ id: UUID, _ change: (inout NoteEntry) -> Void) {
+        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        var entry = notes[i]
+        change(&entry)
+        guard entry != notes[i] else { return }
+        notes[i] = entry
+        saveIndex()
+    }
+
+    /// Replaces several entries at once (reordering), saving the index once.
+    func updateNotes(_ changed: [UUID: NoteEntry]) {
+        notes = notes.map { changed[$0.id] ?? $0 }
+        saveIndex()
     }
 
     var visible: [NoteEntry] { pinnedNotes + listNotes }
@@ -375,6 +408,7 @@ final class NoteStore: ObservableObject {
         guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].location == .trash else { return }
         lastSelfWrite = Date()
         try? FileManager.default.removeItem(at: url(for: notes[i]))
+        removeAttachmentFolder(of: id)
         forget(id)
     }
 
@@ -382,6 +416,7 @@ final class NoteStore: ObservableObject {
         for note in notes where note.location == .trash {
             lastSelfWrite = Date()
             try? FileManager.default.removeItem(at: url(for: note))
+            removeAttachmentFolder(of: note.id)
             forget(note.id)
         }
     }
@@ -407,6 +442,8 @@ final class NoteStore: ObservableObject {
         notes[i].fileName = target
         notes[i].box = destination
         notes[i].trashedAt = destination == .trash ? Date() : nil
+        // Arrives at the top of its new box.
+        notes[i].rank = nil
         if destination != .inbox {
             notes[i].pinned = false
             notes[i].pinnedAt = nil
@@ -471,7 +508,9 @@ final class NoteStore: ObservableObject {
     /// Files come in as plain text: RTF and HTML lose their formatting. Legacy
     /// Word and web-archive files are not parsed, and files over 20 MB are refused.
     func importFiles(_ urls: [URL]) {
-        for url in urls {
+        // The app's own files (a note dragged back onto the window) are never re-imported.
+        let ownFolders = dirs.values.map { $0.standardizedFileURL.path + "/" }
+        for url in urls where !ownFolders.contains(where: url.standardizedFileURL.path.hasPrefix) {
             let ext = url.pathExtension.lowercased()
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
             guard size <= Self.maxFileBytes else {

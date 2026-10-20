@@ -15,6 +15,11 @@ struct SettingsView: View {
             Tab("Themes", systemImage: "paintpalette") {
                 ThemeSettings()
             }
+            Tab {
+                AboutSettings()
+            } label: {
+                Label { Text("About", tableName: "About") } icon: { Image(systemName: "info.circle") }
+            }
         }
         .frame(width: 500)
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).scheme)

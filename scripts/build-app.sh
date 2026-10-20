@@ -41,7 +41,7 @@ make_icon() {
 XCODE_DEV="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 if [[ -x "$XCODE_DEV/usr/bin/actool" ]]; then
     DEVELOPER_DIR="$XCODE_DEV" xcrun actool --compile "$BUNDLE/Contents/Resources" \
-        --platform macosx --minimum-deployment-target 26.0 --app-icon AppIcon \
+        --platform macosx --minimum-deployment-target 15.0 --app-icon AppIcon \
         --output-partial-info-plist "$PWD/build/icon-partial.plist" \
         --errors --warnings "$PWD/Assets/AppIcon.icon" >/dev/null
     echo "Icon: layered Assets/AppIcon.icon (Xcode actool)"

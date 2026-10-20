@@ -75,7 +75,7 @@ struct MainView: View {
                     Text("Create a note or drop a text file here.")
                 } actions: {
                     Button("New Note") { store.newNote() }
-                        .buttonStyle(.glassProminent)
+                        .compatGlassProminentButtonStyle()
                 }
             } else {
                 EditorView(
@@ -90,13 +90,15 @@ struct MainView: View {
                     accent: iconStyle.accentNS,
                     highlight: searchState.value,
                     selection: $selectionState.value,
-                    onRichPaste: { showToast(L("Formatting Removed")) }
+                    onRichPaste: { showToast(L("Formatting Removed")) },
+                    onImages: attachImages
                 )
                 .overlay(alignment: .bottom) {
                     if !focusMode {
                         if isTrashed { trashBanner } else { statusCapsule }
                     }
                 }
+                .overlay(alignment: .bottomTrailing) { attachmentStrip }
             }
         }
         .overlay(alignment: .top) { toast }
@@ -160,7 +162,9 @@ struct MainView: View {
                 .help("Share Note")
             }
 
-            ToolbarSpacer(.fixed, placement: .primaryAction)
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+            }
 
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -193,13 +197,13 @@ struct MainView: View {
             Button("Restore") {
                 if let id = store.activeID { store.restore(id) }
             }
-            .buttonStyle(.glassProminent)
+            .compatGlassProminentButtonStyle()
         }
         .font(.callout)
         .padding(.leading, 16)
         .padding(.trailing, 6)
         .padding(.vertical, 6)
-        .glassEffect(.regular, in: .capsule)
+        .compatGlass(in: Capsule())
         .padding(.bottom, 14)
     }
 
@@ -210,6 +214,11 @@ struct MainView: View {
         let characters = hasSelection ? selection.characters : store.counts.characters
         let minutes = max(1, Int((Double(words) / 220).rounded()))
         return HStack(spacing: 6) {
+            if let note = store.active {
+                StatusDots(status: note.currentStatus) { store.cycleStatus(note.id) }
+                Text("·").foregroundStyle(.tertiary).allowsHitTesting(false)
+            }
+            Group {
             Text(words == 1 ? L("1 word") : L("%ld words", words))
             Text("·").foregroundStyle(.tertiary)
             Text(characters == 1 ? L("1 character") : L("%ld characters", characters))
@@ -219,15 +228,37 @@ struct MainView: View {
                 Text("·").foregroundStyle(.tertiary)
                 Text(L("%ld min read", minutes))
             }
+            }
+            .allowsHitTesting(false)
         }
         .font(.callout)
         .monospacedDigit()
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .glassEffect(.regular, in: .capsule)
+        .compatGlass(in: Capsule())
         .padding(.bottom, 14)
-        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var attachmentStrip: some View {
+        if !focusMode, let id = store.activeID {
+            let urls = store.attachmentURLs(of: id)
+            if !urls.isEmpty {
+                AttachmentStrip(noteID: id, urls: urls) { store.removeAttachment($0, from: id) }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 10)
+                    .transition(.scale(scale: 0.9, anchor: .bottomTrailing).combined(with: .opacity))
+            }
+        }
+    }
+
+    /// Images go to the open note's footer, never into its text.
+    private func attachImages(_ files: [URL], _ data: Data?) -> Bool {
+        guard store.activeID != nil, !isTrashed else { return false }
+        let attached = files.isEmpty ? data.map { store.attachImageData($0) } ?? false : store.attachImageFiles(files)
+        if attached { showToast(L("Image kept in the footer")) }
+        return attached
     }
 
     @ViewBuilder
@@ -241,14 +272,14 @@ struct MainView: View {
                         store.undoLastMove()
                         toastState.value = nil
                     }
-                    .buttonStyle(.glassProminent)
+                    .compatGlassProminentButtonStyle()
                     .controlSize(.small)
                 }
             }
             .padding(.leading, 16)
             .padding(.trailing, toast.undoable ? 6 : 16)
             .padding(.vertical, toast.undoable ? 5 : 9)
-            .glassEffect(.regular, in: .capsule)
+            .compatGlass(in: Capsule())
                 .padding(.top, 14)
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
@@ -272,7 +303,13 @@ struct MainView: View {
             accepted = true
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url else { return }
-                DispatchQueue.main.async { store.importFiles([url]) }
+                DispatchQueue.main.async {
+                    if NoteStore.isImageFile(url) {
+                        if !attachImages([url], nil) { NSSound.beep() }
+                    } else {
+                        store.importFiles([url])
+                    }
+                }
             }
         }
         return accepted
@@ -308,7 +345,7 @@ private struct FocusButtonStyle: PrimitiveButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         if active {
             Button(role: configuration.role, action: configuration.trigger) { configuration.label }
-                .buttonStyle(.glassProminent)
+                .compatGlassProminentButtonStyle()
         } else {
             Button(role: configuration.role, action: configuration.trigger) { configuration.label }
         }

@@ -20,6 +20,8 @@ enum Counting {
 /// Optionally drawn as a ruled sheet, with a red margin line from the logo.
 final class EditorTextView: NSTextView {
     var onRichPaste: (() -> Void)?
+    /// Image files or pasted image data; returns true when they were kept.
+    var onImages: (([URL], Data?) -> Bool)?
     var ruled = false
     var lineHeight: CGFloat = 26
     var ruleColor = NSColor.separatorColor
@@ -72,6 +74,7 @@ final class EditorTextView: NSTextView {
         let pasteboard = NSPasteboard.general
         let richTypes: [NSPasteboard.PasteboardType] = [.rtf, .rtfd, .html, NSPasteboard.PasteboardType("com.apple.flat-rtfd")]
         let wasRich = pasteboard.availableType(from: richTypes) != nil
+        if takeImages(from: pasteboard) { return }
         guard let plain = Self.plainString(from: pasteboard) else {
             super.paste(sender)
             return
@@ -81,6 +84,22 @@ final class EditorTextView: NSTextView {
     }
 
     override func pasteAsRichText(_ sender: Any?) { paste(sender) }
+
+    // Images dropped on the text go to the footer instead of becoming text.
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        takeImages(from: sender.draggingPasteboard) || super.performDragOperation(sender)
+    }
+
+    private func takeImages(from pasteboard: NSPasteboard) -> Bool {
+        let files = (pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? [])
+            .filter(NoteStore.isImageFile)
+        if !files.isEmpty { return onImages?(files, nil) ?? false }
+        // Screenshots and copied images arrive as data; text with an image keeps the text.
+        guard pasteboard.string(forType: .string) == nil,
+              let type = pasteboard.availableType(from: [.png, .tiff]),
+              let data = pasteboard.data(forType: type) else { return false }
+        return onImages?([], data) ?? false
+    }
 
     private static func plainString(from pasteboard: NSPasteboard) -> String? {
         if let string = pasteboard.string(forType: .string) { return string }
@@ -106,6 +125,7 @@ struct EditorView: NSViewRepresentable {
     let highlight: String
     @Binding var selection: SelectionStats
     var onRichPaste: () -> Void
+    var onImages: ([URL], Data?) -> Bool
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -141,6 +161,7 @@ struct EditorView: NSViewRepresentable {
         textView.delegate = context.coordinator
         let coordinator = context.coordinator
         textView.onRichPaste = { [weak coordinator] in coordinator?.parent.onRichPaste() }
+        textView.onImages = { [weak coordinator] files, data in coordinator?.parent.onImages(files, data) ?? false }
 
         scroll.documentView = textView
         scroll.findBarPosition = .aboveContent

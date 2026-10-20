@@ -4,7 +4,7 @@ A plain-text notes app for macOS. Every note is a real `.txt` file, saved a mome
 
 ## Build
 
-Requires macOS 26+ and the Xcode Command Line Tools (full Xcode is not needed).
+Runs on macOS 15 Sequoia and newer (Liquid Glass on macOS 26+). Building needs the Xcode Command Line Tools (full Xcode is not needed).
 
 ```sh
 scripts/build-app.sh            # builds build/Rubbish Notes.app
@@ -31,6 +31,8 @@ The app runs in the App Sandbox, so everything lives in its container, `~/Librar
 Notes from before the sandbox (in `~/Library/Application Support/Rubbish Notes/`) are moved into the container by macOS on the first sandboxed launch, as listed in `Support/container-migration.plist`.
 
 New notes take their first line as their title until you rename them. Archiving, trashing and restoring can be undone with ⌘Z or the Undo button in the notice that follows.
+
+Each note has a status, shown as three dots before the word count: a click moves it from Open (red) to In Progress (yellow) to Done (green), and the sidebar shows it before the title. Notes are listed newest first until you drag them into another order. Images pasted or dropped on a note stay out of the text, as small thumbnails in the corner of the footer (`Attachments/<note id>/`); click one to open it, hover to remove it.
 
 Trashed notes can be restored until you choose Empty Trash, which deletes them permanently after a confirmation. Edits made to the files in other apps show up in Rubbish Notes, including in-place edits to the open note.
 
@@ -77,12 +79,20 @@ Focus Mode (the bolt in the toolbar, ⇧⌘F) hides the sidebar, the Inbox/Archi
 | File | What it does |
 | --- | --- |
 | `NoteStore.swift` | Notes on disk: index, 0.6 s autosave, folder watcher, search, rename, pin, trash, import/export |
+| `NoteStore+Organize.swift` | Status, drag order, image attachments, thumbnail cache |
+| `NoteFooter.swift` | Status dots, sidebar status mark, attachment thumbnails |
+| `Compat.swift` | Glass on macOS 26+, materials and bordered buttons on macOS 15 |
 | `Editor.swift` | Plain-text `NSTextView`: system find bar, optional ruled lines, paste without formatting |
 | `MainView.swift` | Split view, toolbar, glass status capsule and notices |
 | `SidebarView.swift` | Notes list per box, hover rename button, context menus, swipe actions, box switcher, Empty Trash |
-| `SettingsView.swift` | General (appearance, app icon), Editor and Themes tabs |
+| `SettingsView.swift` | General (appearance, app icon), Editor, Themes and About tabs |
+| `AboutView.swift` | About tab (version, witchmymac.com link) and the open-source licenses sheet |
 | `Localization.swift` | `L()` lookups and the in-app language choice |
 | `Theme.swift` | Icon styles and accent, appearance choices, font choices |
 | `EditorTheme.swift` | Editor color themes and the theme preview |
 
 Views use `@StateObject` with `ViewState` instead of `@State`: the `@State` macro plugin ships only with full Xcode, so `@State` fails to build with the Command Line Tools alone.
+
+## License
+
+Rubbish Notes is free software under the [GNU General Public License v3.0](LICENSE). Copyright (C) 2026 Matheus Faria.

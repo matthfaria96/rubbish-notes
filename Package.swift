@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "RubbishNotes",
-    platforms: [.macOS("26.0")],
+    platforms: [.macOS("15.0")],
     targets: [
         .executableTarget(name: "RubbishNotes", path: "Sources/RubbishNotes"),
         // Needs Xcode: the Command Line Tools lack the Swift Testing macros.
