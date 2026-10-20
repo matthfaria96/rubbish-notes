@@ -3,6 +3,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
+    @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
+    @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
 
     var body: some View {
         TabView {
@@ -22,7 +24,21 @@ struct SettingsView: View {
             }
         }
         .frame(width: 500)
-        .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).scheme)
+        // Settings wear the chosen theme too: page color, text and accent.
+        .scrollContentBackground(theme.background == nil ? .automatic : .hidden)
+        .background(theme.background.map { Color(nsColor: $0) } ?? .clear)
+        .themedForeground(theme)
+        .tint(Color(nsColor: theme.accentNS(fallback: (IconStyle(rawValue: iconStyleRaw) ?? .blue).accentNS)))
+        .preferredColorScheme(scheme)
+        .background(SettingsWindowTint(color: theme.background))
+    }
+
+    private var theme: EditorTheme { EditorTheme.named(themeID) }
+
+    /// An explicit appearance wins; otherwise a light or dark theme decides.
+    private var scheme: ColorScheme? {
+        if let forced = (AppearanceChoice(rawValue: appearanceRaw) ?? .system).scheme { return forced }
+        return theme.isDark.map { $0 ? .dark : .light }
     }
 }
 
@@ -287,5 +303,20 @@ private struct ThemeSwatch: View {
             .fill(Color(nsColor: color))
             .frame(width: 11, height: 11)
             .overlay(Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5))
+    }
+}
+
+/// Colors the Settings window's own background and tab bar with the theme.
+private struct SettingsWindowTint: NSViewRepresentable {
+    let color: NSColor?
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            window.backgroundColor = color ?? .windowBackgroundColor
+            window.titlebarAppearsTransparent = color != nil
+        }
     }
 }
