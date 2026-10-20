@@ -13,6 +13,12 @@ enum Prefs {
     static let floatOnTop = "RubbishNotes.floatOnTop"
     static let activeNote = "RubbishNotes.activeNoteID"
     static let sidebarStatus = "RubbishNotes.sidebarStatus"
+    /// See-through glass behind the sidebar (on by default).
+    static let sidebarGlass = "RubbishNotes.sidebarGlass"
+    /// Whole-window opacity, on by default at 90 %.
+    static let windowTranslucent = "RubbishNotes.windowTranslucent"
+    static let windowOpacity = "RubbishNotes.windowOpacity"
+    static let defaultWindowOpacity: Double = 0.9
     static let didSeed = "RubbishNotes.didSeedStarters"
     static let defaultFontSize: Double = 15
 }

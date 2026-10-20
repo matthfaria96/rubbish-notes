@@ -108,6 +108,10 @@
 "Block %ld" = "Bloque %ld";
 "Copy Block" = "Copiar bloque";
 "Delete Block" = "Eliminar bloque";
+"Window" = "Ventana";
+"Glass sidebar" = "Barra lateral de cristal";
+"See-through window" = "Ventana translúcida";
+"Opacity" = "Opacidad";
 "Licenses" = "Licencias";
 "Paper" = "Papel";
 "Mint" = "Menta";

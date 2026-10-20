@@ -29,6 +29,9 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
+    @AppStorage(Prefs.sidebarGlass) private var sidebarGlass = true
+    @AppStorage(Prefs.windowTranslucent) private var translucent = true
+    @AppStorage(Prefs.windowOpacity) private var opacity = Prefs.defaultWindowOpacity
     @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
     @StateObject private var language = ViewState(AppLanguage.current)
     @StateObject private var askRestart = ViewState(false)
@@ -59,6 +62,21 @@ private struct GeneralSettings: View {
                     }
                 }
                 Toggle("Keep window on top of other apps", isOn: $floatOnTop)
+            }
+            Section("Window") {
+                Toggle("Glass sidebar", isOn: $sidebarGlass)
+                Toggle("See-through window", isOn: $translucent)
+                if translucent {
+                    LabeledContent("Opacity") {
+                        HStack(spacing: 10) {
+                            Slider(value: $opacity, in: 0.5...1, step: 0.05)
+                                .frame(width: 180)
+                            Text("\(Int((opacity * 100).rounded())) %")
+                                .monospacedDigit()
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                }
             }
             Section("Storage") {
                 LabeledContent {

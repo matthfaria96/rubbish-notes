@@ -108,6 +108,10 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Block kopieren";
 "Delete Block" = "Block löschen";
+"Window" = "Fenster";
+"Glass sidebar" = "Seitenleiste aus Glas";
+"See-through window" = "Durchscheinendes Fenster";
+"Opacity" = "Deckkraft";
 "Licenses" = "Lizenzen";
 "Paper" = "Papier";
 "Mint" = "Minze";

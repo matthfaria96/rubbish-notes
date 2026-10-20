@@ -10,6 +10,8 @@ struct MainView: View {
     @AppStorage(Prefs.spellCheck) private var spellCheck = false
     @AppStorage(Prefs.ruled) private var ruled = false
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
+    @AppStorage(Prefs.windowTranslucent) private var translucent = true
+    @AppStorage(Prefs.windowOpacity) private var opacity = Prefs.defaultWindowOpacity
     @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
     /// Hides everything around the text except the button that ends it.
@@ -48,9 +50,15 @@ struct MainView: View {
         .onChange(of: focusMode, initial: true) {
             withAnimation(.smooth(duration: 0.3)) { columns.value = focusMode ? .detailOnly : .all }
         }
-        .tint(iconStyle.accent)
+        // The theme colors the whole window, not just the page.
+        .tint(Color(nsColor: theme.accentNS(fallback: iconStyle.accentNS)))
+        .themedForeground(theme)
         .preferredColorScheme(colorScheme)
-        .background(WindowConfigurator(floatOnTop: floatOnTop))
+        .background(WindowConfigurator(
+            floatOnTop: floatOnTop,
+            opacity: translucent ? min(1, max(0.4, opacity)) : 1,
+            background: theme.background
+        ))
         .onDrop(of: [.fileURL], isTargeted: nil, perform: importDrop)
         .onChange(of: store.notice) {
             guard let message = store.notice else { return }
@@ -451,6 +459,9 @@ struct MainView: View {
 /// Reaches the hosting NSWindow for the float-on-top level.
 struct WindowConfigurator: NSViewRepresentable {
     let floatOnTop: Bool
+    let opacity: Double
+    /// The theme's page color, so the bar above the note matches it.
+    let background: NSColor?
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -465,6 +476,8 @@ struct WindowConfigurator: NSViewRepresentable {
     private func apply(to window: NSWindow?) {
         guard let window else { return }
         window.level = floatOnTop ? .floating : .normal
+        window.alphaValue = opacity
+        window.backgroundColor = background ?? .windowBackgroundColor
         NoteStore.shared.undoManager = window.undoManager
         window.tabbingMode = .disallowed
     }

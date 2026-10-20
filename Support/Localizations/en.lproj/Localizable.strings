@@ -108,6 +108,10 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Copy Block";
 "Delete Block" = "Delete Block";
+"Window" = "Window";
+"Glass sidebar" = "Glass sidebar";
+"See-through window" = "See-through window";
+"Opacity" = "Opacity";
 "Licenses" = "Licenses";
 "Paper" = "Paper";
 "Mint" = "Mint";

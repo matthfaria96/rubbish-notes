@@ -8,6 +8,8 @@ struct SidebarView: View {
     @StateObject private var confirmEmpty = ViewState(false)
     @StateObject private var confirmClear = ViewState(false)
     @AppStorage(Prefs.focusMode) private var focusMode = false
+    @AppStorage(Prefs.sidebarGlass) private var sidebarGlass = true
+    @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
 
     var body: some View {
         let pinned = store.pinnedNotes.filter { store.matches($0, query: query) }
@@ -28,6 +30,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
         .overlay {
             if pinned.isEmpty && others.isEmpty {
                 if query.isEmpty { emptyBox } else { ContentUnavailableView.search(text: query) }
@@ -35,6 +38,7 @@ struct SidebarView: View {
         }
             boxSwitcher
         }
+        .background { SidebarBackdrop(theme: EditorTheme.named(themeID), glass: sidebarGlass) }
         // Stays put at the top while only the notes scroll beneath it.
         .safeAreaInset(edge: .top, spacing: 0) { searchField }
         .onDeleteCommand {
