@@ -108,6 +108,11 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Copy Block";
 "Delete Block" = "Delete Block";
+"Export as %@…" = "Export as %@…";
+"Export Note" = "Export Note";
+"Export Note with its images (.zip)" = "Export Note with its images (.zip)";
+"Move this note to the Trash?" = "Move this note to the Trash?";
+"You can restore it from the Trash later." = "You can restore it from the Trash later.";
 "Window" = "Window";
 "Glass sidebar" = "Glass sidebar";
 "See-through window" = "See-through window";

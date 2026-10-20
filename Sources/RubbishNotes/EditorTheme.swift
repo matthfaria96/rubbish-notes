@@ -83,10 +83,10 @@ struct ThemeSample: View {
     var large = false
 
     var body: some View {
-        let text = Color(nsColor: theme.textNS())
-        let secondary = Color(nsColor: theme.secondaryNS())
+        let text = Color(nsColor: fixed(theme.textNS()))
+        let secondary = Color(nsColor: fixed(theme.secondaryNS()))
         let accent = Color(nsColor: theme.accentNS(fallback: fallbackAccent))
-        let selection = Color(nsColor: theme.selectionNS(fallback: fallbackAccent))
+        let selection = Color(nsColor: fixed(theme.selectionNS(fallback: fallbackAccent)))
         let size: CGFloat = large ? 14 : 9
         VStack(alignment: .leading, spacing: large ? 7 : 3) {
             Text("Shopping list").font(.system(size: size + (large ? 3 : 1), weight: .semibold)).foregroundStyle(text)
@@ -107,6 +107,18 @@ struct ThemeSample: View {
         .lineLimit(1)
         .padding(large ? 18 : 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: theme.backgroundNS()))
+        .background(Color(nsColor: fixed(theme.backgroundNS())))
+    }
+
+    /// "Default" follows the system, not the theme currently applied to the
+    /// window, so its sample keeps showing the system look.
+    private func fixed(_ color: NSColor) -> NSColor {
+        guard theme == .standard else { return color }
+        let dark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        var resolved = color
+        NSAppearance(named: dark ? .darkAqua : .aqua)?.performAsCurrentDrawingAppearance {
+            resolved = color.usingColorSpace(.sRGB) ?? color
+        }
+        return resolved
     }
 }

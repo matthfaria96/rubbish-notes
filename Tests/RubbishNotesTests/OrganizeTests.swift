@@ -147,3 +147,26 @@ struct BlocksPanelTests {
         #expect(BlocksPanel.height(for: 9) == BlocksPanel.maxHeight)
     }
 }
+
+@Suite("Pinned order and export")
+struct PinnedExportTests {
+    @Test func pinnedNotesReorder() throws {
+        let (store, root, defaults) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let a = try #require(store.newNote(name: "a"))
+        let b = try #require(store.newNote(name: "b"))
+        let c = try #require(store.newNote(name: "c"))
+        [a, b, c].forEach(store.togglePin)
+        let shown = store.pinnedNotes.map(\.id)
+        store.reorderPinned(shown, from: IndexSet(integer: 0), to: 3)
+        let moved = Array(shown.dropFirst()) + [shown[0]]
+        #expect(store.pinnedNotes.map(\.id) == moved)
+        #expect(NoteStore(rootDir: root, defaults: defaults).pinnedNotes.map(\.id) == moved)
+    }
+
+    @Test func plainTextHasTitleTextThenBlocks() {
+        let out = NoteExporter.plainText(title: "Trip", text: "body\n", blocks: ["one", "two"])
+        let order = ["Trip", "body", "one", "two"].map { out.range(of: $0)!.lowerBound }
+        #expect(order == order.sorted())
+    }
+}

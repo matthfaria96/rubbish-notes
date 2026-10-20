@@ -22,6 +22,8 @@ struct MainView: View {
     @StateObject private var searchState = ViewState("")
     @StateObject private var columns = ViewState(NavigationSplitViewVisibility.all)
     @StateObject private var detailWidth = ViewState<CGFloat>(600)
+    /// The note waiting for the "Move to Trash?" confirmation.
+    @StateObject private var confirmTrash = ViewState<UUID?>(nil)
     @StateObject private var blocksOpen = ViewState(false)
     @StateObject private var imagesHintOpen = ViewState(false)
     @StateObject private var lightbox = ViewState<URL?>(nil)
@@ -146,6 +148,16 @@ struct MainView: View {
             blocksOpen.value = false
             imagesHintOpen.value = false
         }
+        .confirmationDialog(L("Move this note to the Trash?"), isPresented: Binding(
+            get: { confirmTrash.value != nil }, set: { if !$0 { confirmTrash.value = nil } }
+        )) {
+            Button(L("Move to Trash"), role: .destructive) {
+                if let id = confirmTrash.value { store.trash(id) }
+                confirmTrash.value = nil
+            }
+        } message: {
+            Text("You can restore it from the Trash later.")
+        }
         .confirmationDialog(deleteTitle, isPresented: deleteBinding) {
             Button(L("Delete"), role: .destructive) { confirmDelete() }
         } message: {
@@ -204,6 +216,13 @@ struct MainView: View {
             }
         } else if let note = store.active {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    TextFinder.perform(.showFindInterface)
+                } label: {
+                    Label("Find", systemImage: "magnifyingglass")
+                }
+                .help("Find in Note (⌘F)")
+
                 if note.location == .inbox {
                     Button {
                         store.togglePin(note.id)
@@ -221,26 +240,45 @@ struct MainView: View {
                 }
                 .help(L(note.location == .archive ? "Move to Inbox" : "Archive Note"))
 
-                ShareLink(item: store.url(for: note)) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                Menu {
+                    ForEach(NoteExportFormat.allCases) { format in
+                        Button(L("Export as %@…", format.title)) { export(note, as: format) }
+                    }
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
                 }
-                .help("Share Note")
+                .menuIndicator(.hidden)
+                .help(store.attachmentURLs(of: note.id).isEmpty ? L("Export Note") : L("Export Note with its images (.zip)"))
             }
 
             if #available(macOS 26, *) {
                 ToolbarSpacer(.fixed, placement: .primaryAction)
             }
 
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    TextFinder.perform(.showFindInterface)
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) {
+                    confirmTrash.value = note.id
                 } label: {
-                    Label("Find", systemImage: "magnifyingglass")
+                    Label("Move to Trash", systemImage: "trash")
                 }
-                .help("Find in Note (⌘F)")
+                .help("Move to Trash")
+            }
 
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
             }
         }
+    }
+
+    private func export(_ note: NoteEntry, as format: NoteExportFormat) {
+        store.flushNow()
+        NoteExporter.export(
+            title: note.title,
+            text: store.text,
+            blocks: store.blocks(of: note.id),
+            images: store.attachmentURLs(of: note.id),
+            as: format
+        )
     }
 
     private var focusButton: some View {

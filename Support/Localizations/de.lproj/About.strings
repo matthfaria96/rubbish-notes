@@ -1,0 +1,9 @@
+/* Rubbish Notes — About */
+
+"About" = "Über";
+"Version %@" = "Version %@";
+"Open-source licenses" = "Open-Source-Lizenzen";
+"Done" = "Fertig";
+"Rubbish Notes is a plain-text notes app. Every note is a real .txt file, saved a moment after you stop typing, and pasted text arrives without formatting." = "Rubbish Notes ist eine App für Notizen in reinem Text. Jede Notiz ist eine echte .txt-Datei, die kurz nach dem Tippen gesichert wird, und eingefügter Text kommt ohne Formatierung an.";
+"Rubbish Notes is free software under the GNU GPL v3.0." = "Rubbish Notes ist freie Software unter der GNU GPL v3.0.";
+"Rubbish Notes is free software. Its license is reproduced below." = "Rubbish Notes ist freie Software. Die Lizenz ist unten wiedergegeben.";

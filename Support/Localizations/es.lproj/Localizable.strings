@@ -108,6 +108,11 @@
 "Block %ld" = "Bloque %ld";
 "Copy Block" = "Copiar bloque";
 "Delete Block" = "Eliminar bloque";
+"Export as %@…" = "Exportar como %@…";
+"Export Note" = "Exportar nota";
+"Export Note with its images (.zip)" = "Exportar la nota con sus imágenes (.zip)";
+"Move this note to the Trash?" = "¿Trasladar esta nota a la papelera?";
+"You can restore it from the Trash later." = "Puedes restaurarla desde la papelera más tarde.";
 "Window" = "Ventana";
 "Glass sidebar" = "Barra lateral de cristal";
 "See-through window" = "Ventana translúcida";

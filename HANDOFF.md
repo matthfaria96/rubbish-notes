@@ -1,6 +1,6 @@
 # Rubbish Notes — handoff
 
-Read this first in a new session. Last updated 2026-10-20, version **0.6.1**.
+Read this first in a new session. Last updated 2026-10-20, version **0.7.0**.
 
 ## State
 
@@ -8,7 +8,7 @@ Read this first in a new session. Last updated 2026-10-20, version **0.6.1**.
   redesign unless asked; fix what they report.
 - **Don't publish** (tag, GitHub release, site) unless the owner asks in that
   message. Install locally and commit locally.
-- Only one release exists on GitHub: v0.6.1. The owner has asked twice to
+- Only one release exists on GitHub: the latest (v0.7.0). The owner has asked twice to
   delete old releases after publishing a new one.
 - witchmymac.com (repo `~/Documents/witchmymac`) lists the app. Its download
   button reads `apps.js` (`tag`, `file`). Screenshots and copy were redone for

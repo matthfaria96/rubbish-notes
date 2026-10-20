@@ -20,7 +20,9 @@ struct TitleField: View {
                     .foregroundStyle(.secondary)
             }
             if let text = draft.value {
+                // The bar gives an unsized field almost no room; give it some.
                 RenameField(initial: text, bold: true, onCommit: commit, onCancel: cancel)
+                    .frame(minWidth: width == nil ? 260 : nil)
             } else {
                 Text(title)
                     .font(.headline)

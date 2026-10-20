@@ -20,6 +20,7 @@ struct SidebarView: View {
             if !pinned.isEmpty {
                 Section("Pinned") {
                     ForEach(pinned) { row($0) }
+                        .onMove(perform: query.isEmpty ? { store.reorderPinned(pinned.map(\.id), from: $0, to: $1) } : nil)
                 }
             }
             if !others.isEmpty {
@@ -127,16 +128,7 @@ struct SidebarView: View {
             if store.box == .inbox && store.count(in: .inbox) > 0 {
                 clearInboxButton
             }
-            Picker("Show", selection: boxBinding) {
-                ForEach(NoteBox.allCases) { box in
-                    Label(box.title, systemImage: box.symbol)
-                        .help("\(box.title) (⌘\(NoteBox.allCases.firstIndex(of: box)! + 1))" as String)
-                        .tag(box)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
+            BoxSwitcher(selection: boxBinding)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
@@ -315,5 +307,42 @@ struct NoteRow: View {
             return date.formatted(.dateTime.weekday(.wide))
         }
         return date.formatted(date: .numeric, time: .omitted)
+    }
+}
+
+/// Inbox / Archive / Trash. Drawn by hand (not a system segmented control)
+/// so it takes the theme's text and accent colors.
+private struct BoxSwitcher: View {
+    @Binding var selection: NoteBox
+    @Namespace private var pill
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(NoteBox.allCases) { box in
+                let selected = box == selection
+                Button { selection = box } label: {
+                    Text(box.title)
+                        .font(.callout.weight(selected ? .semibold : .regular))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .foregroundStyle(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                        .background {
+                            if selected {
+                                Capsule()
+                                    .fill(.tint.opacity(0.18))
+                                    .matchedGeometryEffect(id: "pill", in: pill)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("\(box.title) (⌘\(NoteBox.allCases.firstIndex(of: box)! + 1))" as String)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .compatGlass(in: Capsule())
+        .animation(.smooth(duration: 0.22), value: selection)
     }
 }

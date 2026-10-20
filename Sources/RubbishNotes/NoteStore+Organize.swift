@@ -54,6 +54,20 @@ extension NoteStore {
         setStatus(id, note.currentStatus.next)
     }
 
+    /// Dragging among the pinned notes: their pin dates are rewritten in the new order.
+    func reorderPinned(_ ids: [UUID], from source: IndexSet, to destination: Int) {
+        var order = ids
+        order.move(fromOffsets: source, toOffset: destination)
+        let byID = Dictionary(uniqueKeysWithValues: notes.map { ($0.id, $0) })
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let dated = order.enumerated().compactMap { index, id -> (UUID, NoteEntry)? in
+            guard var entry = byID[id] else { return nil }
+            entry.pinnedAt = start.addingTimeInterval(Double(index))
+            return (id, entry)
+        }
+        updateNotes(Dictionary(uniqueKeysWithValues: dated))
+    }
+
     /// Dragging in the sidebar: `ids` is the list as shown, rows at `source` go to `destination`.
     func reorder(_ ids: [UUID], from source: IndexSet, to destination: Int) {
         var order = ids
