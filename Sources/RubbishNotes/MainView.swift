@@ -19,8 +19,8 @@ struct MainView: View {
     @StateObject private var toastTask = ViewState<DispatchWorkItem?>(nil)
     @StateObject private var searchState = ViewState("")
     @StateObject private var columns = ViewState(NavigationSplitViewVisibility.all)
+    @StateObject private var detailWidth = ViewState<CGFloat>(600)
     @StateObject private var lightbox = ViewState<URL?>(nil)
-    @StateObject private var shelfExpanded = ViewState(false)
     /// Images waiting for the delete confirmation.
     @StateObject private var pendingDelete = ViewState<[URL]>([])
 
@@ -33,7 +33,6 @@ struct MainView: View {
         if let forced = appearance.scheme { return forced }
         return theme.isDark.map { $0 ? .dark : .light }
     }
-    private var hasImages: Bool { store.activeID.map { !store.attachmentURLs(of: $0).isEmpty } ?? false }
     private var isTrashed: Bool { store.active?.location == .trash }
 
     var body: some View {
@@ -98,33 +97,47 @@ struct MainView: View {
                     onRichPaste: { showToast(L("Formatting Removed")) },
                     onImages: attachImages
                 )
-                .overlay(alignment: hasImages ? .bottomLeading : .bottom) {
+                .overlay(alignment: .bottom) {
                     if !focusMode {
-                        if isTrashed {
-                            trashBanner
-                        } else if !shelfExpanded.value {
-                            // Moves aside when images sit in the other corner.
-                            statusCapsule.padding(.leading, hasImages ? 16 : 0)
-                        }
+                        if isTrashed { trashBanner } else { statusCapsule }
+                    }
+                }
+                .overlay(alignment: .bottomLeading) {
+                    if !focusMode, !isTrashed, let id = store.activeID {
+                        BlocksButton(noteID: id)
+                            .padding(.leading, 16)
+                            .padding(.bottom, 14)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) { attachmentStrip }
             }
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { detailWidth.value = $0 }
         .overlay { lightboxView }
         .overlay(alignment: .top) { toast }
         .onChange(of: store.activeID) {
             lightbox.value = nil
-            shelfExpanded.value = false
         }
         .confirmationDialog(deleteTitle, isPresented: deleteBinding) {
             Button(L("Delete"), role: .destructive) { confirmDelete() }
         } message: {
             Text("You can’t undo this.")
         }
+        // The window keeps its title (Window menu); the bar shows the editable one.
         .navigationTitle(store.active?.title ?? "Rubbish Notes")
-        .navigationSubtitle(focusMode ? "" : subtitle)
+        .toolbar(removing: .title)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                TitleField(
+                    title: store.active?.title ?? "Rubbish Notes",
+                    subtitle: focusMode ? "" : subtitle,
+                    editable: store.active.map { $0.location != .trash } ?? false,
+                    // Leaves room for the buttons on the right (fewer in focus mode).
+                    width: max(120, detailWidth.value - (focusMode ? 90 : 300))
+                ) { newTitle in
+                    if let id = store.activeID { store.rename(id, to: newTitle) }
+                }
+            }
             if !focusMode { detailToolbar }
             ToolbarItem(placement: .primaryAction) { focusButton }
         }
@@ -265,13 +278,9 @@ struct MainView: View {
         if !focusMode, let id = store.activeID {
             let urls = store.attachmentURLs(of: id)
             if !urls.isEmpty {
-                AttachmentShelf(
-                    urls: urls,
-                    expanded: $shelfExpanded.value,
-                    onOpen: { lightbox.value = $0 },
-                    onExportAll: { NoteStore.exportImages(urls, named: store.active?.title ?? "") },
-                    onDeleteAll: { pendingDelete.value = urls }
-                )
+                AttachmentShelf(urls: urls) { url in
+                    withAnimation(ImageLightbox.motion) { lightbox.value = url }
+                }
                     .padding(.trailing, 16)
                     .padding(.bottom, 10)
                     .transition(.scale(scale: 0.9, anchor: .bottomTrailing).combined(with: .opacity))
@@ -290,7 +299,8 @@ struct MainView: View {
                 onDelete: { pendingDelete.value = [$0] },
                 onDeleteAll: { pendingDelete.value = urls }
             )
-            .transition(.opacity)
+            // Grows out of the thumbnails' corner and shrinks back into it.
+            .transition(.scale(scale: 0.12, anchor: .bottomTrailing).combined(with: .opacity))
         }
     }
 
@@ -316,9 +326,12 @@ struct MainView: View {
         let rest = store.attachmentURLs(of: id)
         if let open = lightbox.value, doomed.contains(open) {
             let position = before.firstIndex(of: open) ?? 0
-            lightbox.value = rest.isEmpty ? nil : rest[min(position, rest.count - 1)]
+            if rest.isEmpty {
+                withAnimation(ImageLightbox.motion) { lightbox.value = nil }
+            } else {
+                lightbox.value = rest[min(position, rest.count - 1)]
+            }
         }
-        if rest.isEmpty { shelfExpanded.value = false }
     }
 
     /// Images go to the open note's footer, never into its text.
@@ -424,3 +437,4 @@ private struct Toast: Equatable {
     let message: String
     let undoable: Bool
 }
+

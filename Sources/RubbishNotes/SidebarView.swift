@@ -4,8 +4,8 @@ import SwiftUI
 struct SidebarView: View {
     @EnvironmentObject private var store: NoteStore
     let query: String
-    @StateObject private var renaming = ViewState<UUID?>(nil)
     @StateObject private var confirmEmpty = ViewState(false)
+    @StateObject private var confirmClear = ViewState(false)
     @AppStorage(Prefs.focusMode) private var focusMode = false
 
     var body: some View {
@@ -41,6 +41,13 @@ struct SidebarView: View {
             let count = store.count(in: .trash)
             Text(count == 1 ? L("1 note will be deleted permanently. You can’t undo this.")
                             : L("%ld notes will be deleted permanently. You can’t undo this.", count))
+        }
+        .confirmationDialog("Delete all notes?", isPresented: $confirmClear.value) {
+            Button("Move All to Trash", role: .destructive) { store.trashAllInbox() }
+        } message: {
+            let count = store.count(in: .inbox)
+            Text(count == 1 ? L("1 note goes to the Trash. Archived notes stay.")
+                            : L("%ld notes go to the Trash. Archived notes stay.", count))
         }
         .toolbar(removing: focusMode ? .sidebarToggle : nil)
         .toolbar {
@@ -107,6 +114,9 @@ struct SidebarView: View {
                 .controlSize(.large)
                 .help("Delete every note in the Trash permanently")
             }
+            if store.box == .inbox && store.count(in: .inbox) > 0 {
+                clearInboxButton
+            }
             Picker("Show", selection: boxBinding) {
                 ForEach(NoteBox.allCases) { box in
                     Label(box.title, systemImage: box.symbol)
@@ -122,12 +132,28 @@ struct SidebarView: View {
         .padding(.vertical, 12)
     }
 
+    /// Quiet on purpose: a small floating chip, and it always asks first.
+    private var clearInboxButton: some View {
+        HStack {
+            Spacer()
+            Button { confirmClear.value = true } label: {
+                Label("Delete All", systemImage: "trash")
+                    .font(.caption)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .compatGlass(in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tertiary)
+            .help("Move every note in the Inbox to the Trash (archived notes stay)")
+        }
+    }
+
     private func row(_ note: NoteEntry) -> some View {
         NoteRow(
             note: note,
             preview: store.previews[note.id] ?? "",
-            modified: note.location == .trash ? note.trashedAt : store.modified[note.id],
-            renamingID: $renaming.value
+            modified: note.location == .trash ? note.trashedAt : store.modified[note.id]
         )
         .tag(note.id)
     }
@@ -138,69 +164,29 @@ struct NoteRow: View {
     let note: NoteEntry
     let preview: String
     let modified: Date?
-    @Binding var renamingID: UUID?
-    @StateObject private var draftState = ViewState("")
-    @StateObject private var hoverState = ViewState(false)
     @AppStorage(Prefs.sidebarStatus) private var sidebarStatus = true
-    @FocusState private var nameFocused: Bool
-
-    private var isRenaming: Bool { renamingID == note.id }
-    private var canRename: Bool { note.location != .trash }
 
     var body: some View {
-        HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 2) {
-                if isRenaming {
-                    TextField("Name", text: $draftState.value)
-                        .textFieldStyle(.plain)
-                        .font(.body.weight(.semibold))
-                        .focused($nameFocused)
-                        .onSubmit(commitRename)
-                        .onExitCommand { renamingID = nil }
-                        .onAppear {
-                            draftState.value = note.title
-                            DispatchQueue.main.async { nameFocused = true }
-                        }
-                        .onChange(of: nameFocused) { if !nameFocused, isRenaming { commitRename() } }
-                } else {
-                    HStack(spacing: 5) {
-                        if sidebarStatus { StatusMark(status: note.currentStatus) }
-                        Text(note.title)
-                            .font(.body.weight(.semibold))
-                            .lineLimit(1)
-                    }
-                    .simultaneousGesture(TapGesture(count: 2).onEnded(startRename))
-                }
-                HStack(spacing: 6) {
-                    if let modified {
-                        Text(Self.dateLabel(modified))
-                    }
-                    Text(preview.isEmpty ? L("No additional text") : preview)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .font(.subheadline)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                if sidebarStatus { StatusMark(status: note.currentStatus) }
+                Text(note.title)
+                    .font(.body.weight(.semibold))
+                    .lineLimit(1)
             }
-            Spacer(minLength: 0)
-            if hoverState.value && canRename && !isRenaming {
-                Button(action: startRename) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 30, height: 30)
-                        .contentShape(Rectangle())
+            HStack(spacing: 6) {
+                if let modified {
+                    Text(Self.dateLabel(modified))
                 }
-                .buttonStyle(.plain)
-                .help("Rename Note (or double-click the title)")
-                .accessibilityLabel("Rename")
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                Text(preview.isEmpty ? L("No additional text") : preview)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .font(.subheadline)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 3)
         .contentShape(Rectangle())
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) { hoverState.value = hovering }
-        }
         .contextMenu { contextMenu.labelStyle(.titleAndIcon) }
         .swipeActions(edge: .leading) { leadingSwipe }
         .swipeActions(edge: .trailing) { trailingSwipe }
@@ -213,7 +199,6 @@ struct NoteRow: View {
             Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
                 store.togglePin(note.id)
             }
-            Button("Rename", systemImage: "pencil", action: startRename)
             statusMenu
             ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
@@ -222,7 +207,6 @@ struct NoteRow: View {
             Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
         case .archive:
             Button("Move to Inbox", systemImage: "tray.and.arrow.up") { store.restore(note.id) }
-            Button("Rename", systemImage: "pencil", action: startRename)
             ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
             Divider()
@@ -268,18 +252,6 @@ struct NoteRow: View {
         case .trash:
             Button("Delete", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
         }
-    }
-
-    private func startRename() {
-        guard canRename else { return }
-        renamingID = note.id
-    }
-
-    private func commitRename() {
-        guard isRenaming else { return }
-        store.rename(note.id, to: draftState.value)
-        renamingID = nil
-        NotificationCenter.default.post(name: .focusEditor, object: nil)
     }
 
     /// Notes-style dates: time today, "Yesterday", weekday this week, else a short date.

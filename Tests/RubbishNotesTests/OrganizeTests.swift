@@ -88,3 +88,52 @@ struct AttachmentTests {
         #expect(!FileManager.default.fileExists(atPath: store.attachmentFolder(of: id).path))
     }
 }
+
+@Suite("Clear inbox")
+struct ClearInboxTests {
+    @Test func inboxGoesToTrashArchiveStays() throws {
+        let (store, root, defaults) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let a = try #require(store.newNote(content: "a", name: "a"))
+        let b = try #require(store.newNote(content: "b", name: "b"))
+        let kept = try #require(store.newNote(content: "k", name: "kept"))
+        store.togglePin(b)
+        store.archive(kept)
+        store.trashAllInbox()
+        let boxes = Dictionary(uniqueKeysWithValues: store.notes.map { ($0.id, $0.location) })
+        #expect(boxes[a] == .trash && boxes[b] == .trash && boxes[kept] == .archive)
+        #expect(store.notes.first { $0.id == b }?.pinned == false)
+        #expect(store.count(in: .inbox) == 0)
+        let reopened = NoteStore(rootDir: root, defaults: defaults)
+        #expect(reopened.count(in: .trash) == 2 && reopened.count(in: .archive) == 1)
+    }
+}
+
+@Suite("Blocks")
+struct BlockTests {
+    @Test func addEditRemoveAndPersist() throws {
+        let (store, root, defaults) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let id = try #require(store.newNote(name: "a"))
+        #expect(store.addBlock(to: id, text: "first") == 0)
+        #expect(store.addBlock(to: id) == 1)
+        store.updateBlock(1, of: id, to: "second")
+        store.updateBlock(7, of: id, to: "ignored")
+        #expect(store.blocks(of: id) == ["first", "second"])
+        #expect(NoteStore(rootDir: root, defaults: defaults).blocks(of: id) == ["first", "second"])
+        store.removeBlock(0, of: id)
+        #expect(store.blocks(of: id) == ["second"])
+        store.removeBlock(0, of: id)
+        #expect(store.notes.first { $0.id == id }?.blocks == nil)
+    }
+
+    @Test func selectingWritesTheIndexLater() throws {
+        let (store, root, defaults) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let a = try #require(store.newNote(name: "a"))
+        _ = try #require(store.newNote(name: "b"))
+        store.select(a)
+        store.savePendingIndex()
+        #expect(NoteStore(rootDir: root, defaults: defaults).notes.count == 2)
+    }
+}

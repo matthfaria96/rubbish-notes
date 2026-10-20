@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         NoteStore.shared.flushNow()
+        NoteStore.shared.savePendingIndex()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

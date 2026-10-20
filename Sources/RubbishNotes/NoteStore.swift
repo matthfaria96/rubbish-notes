@@ -60,6 +60,8 @@ struct NoteEntry: Codable, Identifiable, Equatable {
     var rank: Double?
     /// Image file names in the note's attachment folder, oldest first.
     var attachments: [String]?
+    /// Long texts kept apart from the note itself, oldest first.
+    var blocks: [String]?
 
     var title: String { (fileName as NSString).deletingPathExtension }
     var location: NoteBox { box ?? .inbox }
@@ -99,6 +101,7 @@ final class NoteStore: ObservableObject {
     private var dirty = false
     private var pendingFlush: DispatchWorkItem?
     private var savedBadge: DispatchWorkItem?
+    private var pendingIndexSave: DispatchWorkItem?
     private var watchers: [DispatchSourceFileSystemObject] = []
     /// Watches the open note's file: folder events miss in-place edits.
     private var fileWatcher: DispatchSourceFileSystemObject?
@@ -228,7 +231,8 @@ final class NoteStore: ObservableObject {
         diskStamp = Self.modificationDate(url(for: notes[i]))
         textVersion += 1
         defaults.set(id.uuidString, forKey: Prefs.activeNote)
-        saveIndex()
+        // Only the open date changed: written once clicking settles, not on every click.
+        scheduleIndexSave()
         watchActiveFile()
         NotificationCenter.default.post(name: .focusEditor, object: nil)
     }
@@ -422,6 +426,35 @@ final class NoteStore: ObservableObject {
         }
     }
 
+    /// Every inbox note goes to the Trash at once; archived notes stay where they are.
+    func trashAllInbox() {
+        let doomed = notes.filter { $0.location == .inbox }
+        guard !doomed.isEmpty else { return }
+        flushNow()
+        let now = Date()
+        lastSelfWrite = now
+        let moved = Dictionary(uniqueKeysWithValues: doomed.compactMap { note -> (UUID, NoteEntry)? in
+            let target = uniqueFileName(base: note.title, in: .trash)
+            do {
+                try FileManager.default.moveItem(at: url(for: note), to: dirs[.trash]!.appendingPathComponent(target))
+            } catch {
+                return nil
+            }
+            var entry = note
+            entry.fileName = target
+            entry.box = .trash
+            entry.trashedAt = now
+            entry.rank = nil
+            entry.pinned = false
+            entry.pinnedAt = nil
+            return (note.id, entry)
+        })
+        if moved.count < doomed.count { NSSound.beep() }
+        updateNotes(moved)
+        if let id = activeID, moved[id] != nil { select(visible.first?.id) }
+        notice = moved.count == 1 ? L("1 note moved to the Trash") : L("%ld notes moved to the Trash", moved.count)
+    }
+
     func reveal(_ id: UUID) {
         guard let note = notes.first(where: { $0.id == id }) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url(for: note)])
@@ -559,7 +592,21 @@ final class NoteStore: ObservableObject {
         notes = decoded
     }
 
+    /// Writes an index save still waiting (on quit).
+    func savePendingIndex() {
+        if pendingIndexSave != nil { saveIndex() }
+    }
+
+    private func scheduleIndexSave() {
+        pendingIndexSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.saveIndex() }
+        pendingIndexSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+    }
+
     private func saveIndex() {
+        pendingIndexSave?.cancel()
+        pendingIndexSave = nil
         guard let data = try? JSONEncoder().encode(notes) else { return }
         try? data.write(to: indexURL, options: .atomic)
     }

@@ -1,117 +1,84 @@
 import AppKit
 import SwiftUI
 
-/// The note's images in the footer: a peek of a few thumbnails that expands
-/// into a gallery of all of them, and collapses back.
+/// The note's images in the footer: a small fanned pile with a count, narrow
+/// enough to leave the centred word count alone. A click opens the lightbox.
 struct AttachmentShelf: View {
-    static let peekLimit = 4
+    static let pileLimit = 3
     let urls: [URL]
-    @Binding var expanded: Bool
     let onOpen: (URL) -> Void
-    let onExportAll: () -> Void
-    let onDeleteAll: () -> Void
 
     var body: some View {
-        Group {
-            if expanded { gallery } else { peek }
-        }
-        .compatGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .animation(.smooth(duration: 0.28), value: expanded)
-    }
-
-    private var peek: some View {
-        HStack(spacing: 6) {
-            ForEach(urls.prefix(Self.peekLimit), id: \.self) { url in
-                AttachmentThumb(url: url, side: 40) { onOpen(url) }
+        let pile = Array(urls.prefix(Self.pileLimit))
+        Button { if let first = urls.first { onOpen(first) } } label: {
+            ZStack(alignment: .leading) {
+                ForEach(Array(pile.enumerated().reversed()), id: \.element) { offset, url in
+                    AttachmentThumb(url: url, side: 40)
+                        .shadow(color: .black.opacity(0.18), radius: 2, x: 1)
+                        .offset(x: CGFloat(offset) * 9)
+                        .rotationEffect(.degrees(Double(offset) * 4), anchor: .bottom)
+                }
             }
-            if urls.count > Self.peekLimit {
-                Button { expanded = true } label: {
-                    Text("+\(urls.count - Self.peekLimit)")
-                        .font(.callout.weight(.semibold))
+            .frame(width: 40 + CGFloat(pile.count - 1) * 9, alignment: .leading)
+            .overlay(alignment: .topTrailing) {
+                if urls.count > 1 {
+                    Text("\(urls.count)")
+                        .font(.caption2.weight(.bold))
                         .monospacedDigit()
-                        .frame(width: 40, height: 40)
-                        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Show All Images")
-            }
-            toggle
-        }
-        .padding(5)
-    }
-
-    private var gallery: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Text(urls.count == 1 ? L("1 image") : L("%ld images", urls.count))
-                    .font(.callout.weight(.semibold))
-                Spacer(minLength: 12)
-                Button(action: onExportAll) { Image(systemName: "square.and.arrow.up.on.square") }
-                    .buttonStyle(.plain)
-                    .help("Export All Images…")
-                Button(action: onDeleteAll) { Image(systemName: "trash") }
-                    .buttonStyle(.plain)
-                    .help("Delete All Images…")
-                toggle
-            }
-            .foregroundStyle(.secondary)
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 64), spacing: 8)], spacing: 8) {
-                    ForEach(urls, id: \.self) { url in
-                        AttachmentThumb(url: url, side: 64) { onOpen(url) }
-                    }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .frame(minWidth: 18, minHeight: 18)
+                        .background(Color.accentColor, in: Capsule())
+                        .offset(x: 7, y: -7)
                 }
             }
-            .frame(height: min(220, CGFloat((urls.count + 3) / 4) * 72 - 8))
-        }
-        .padding(10)
-        .frame(width: 320)
-    }
-
-    /// Opens the gallery (pushing the rest of the footer away) or folds it back.
-    private var toggle: some View {
-        Button { expanded.toggle() } label: {
-            Image(systemName: expanded ? "chevron.down" : "chevron.up")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 40)
-                .contentShape(Rectangle())
+            .padding(6)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(L(expanded ? "Collapse" : "Show All Images"))
+        .compatGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .help(urls.count == 1 ? L("Open Image") : L("%ld images", urls.count))
     }
 }
 
 struct AttachmentThumb: View {
     let url: URL
     let side: CGFloat
-    let onOpen: () -> Void
+    var onOpen: (() -> Void)?
     @StateObject private var image = ViewState<NSImage?>(nil)
 
     var body: some View {
-        Button(action: onOpen) {
-            Group {
-                if let picture = image.value {
-                    Image(nsImage: picture).resizable().scaledToFill()
-                } else {
-                    Color.secondary.opacity(0.15)
-                }
+        Group {
+            if let onOpen {
+                Button(action: onOpen) { square }
+                    .buttonStyle(.plain)
+                    .help(L("Open Image"))
+            } else {
+                square
             }
-            .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .help(L("Open Image"))
         .onAppear {
             let state = image
             ThumbnailCache.shared.thumbnail(for: url, size: side) { state.value = $0 }
         }
     }
+
+    private var square: some View {
+        Group {
+            if let picture = image.value {
+                Image(nsImage: picture).resizable().scaledToFill()
+            } else {
+                Color.secondary.opacity(0.15)
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Rectangle())
+    }
 }
 
-/// One image large over the note: arrows (or ← →) move through them, Esc closes.
+/// One image large over the note, its siblings in a strip below. Arrows (or ← →)
+/// move through them, Esc or a click outside closes. Never hands off to Quick Look.
 struct ImageLightbox: View {
     let urls: [URL]
     @Binding var current: URL?
@@ -127,19 +94,8 @@ struct ImageLightbox: View {
         ZStack {
             Color.black.opacity(0.92)
                 .ignoresSafeArea()
-                .onTapGesture { current = nil }
-            if let picture = image.value {
-                // Never blown up past its own size, so small images stay sharp.
-                Image(nsImage: picture)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: picture.size.width, maxHeight: picture.size.height)
-                    .padding(.horizontal, 70)
-                    .padding(.vertical, 64)
-                    .shadow(color: .black.opacity(0.5), radius: 20)
-            } else {
-                ProgressView().controlSize(.large)
-            }
+                .onTapGesture(perform: close)
+            picture
             if urls.count > 1 {
                 HStack {
                     arrow("chevron.left", by: -1)
@@ -148,15 +104,14 @@ struct ImageLightbox: View {
                 }
                 .padding(.horizontal, 16)
             }
-            VStack {
-                toolbar
-                Spacer()
-                if urls.count > 1 {
-                    Text("\(index + 1) / \(urls.count)")
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.7))
-                        .padding(.bottom, 18)
+            VStack(spacing: 0) {
+                ZStack(alignment: .trailing) {
+                    toolbar.frame(maxWidth: .infinity)
+                    moreMenu.padding(.trailing, 16)
                 }
+                .padding(.top, 16)
+                Spacer()
+                if urls.count > 1 { filmstrip }
             }
         }
         .focusable()
@@ -165,30 +120,92 @@ struct ImageLightbox: View {
         .onAppear { focused = true }
         .onKeyPress(.leftArrow) { step(-1); return .handled }
         .onKeyPress(.rightArrow) { step(1); return .handled }
-        .onExitCommand { current = nil }
+        .onExitCommand(perform: close)
         .task(id: current) { await load() }
+    }
+
+    @ViewBuilder
+    private var picture: some View {
+        if let picture = image.value {
+            // Never blown up past its own size, so small images stay sharp.
+            Image(nsImage: picture)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: picture.size.width, maxHeight: picture.size.height)
+                .padding(.horizontal, 70)
+                .padding(.top, 64)
+                .padding(.bottom, urls.count > 1 ? 96 : 64)
+                .shadow(color: .black.opacity(0.5), radius: 20)
+                .id(current)
+                .transition(.opacity)
+        } else {
+            ProgressView().controlSize(.large)
+        }
     }
 
     private var toolbar: some View {
         HStack(spacing: 18) {
             if let url = current {
                 tool("doc.on.doc", "Copy Image") { NoteStore.copyImage(url) }
-                tool("square.and.arrow.up", "Export Image…") { NoteStore.exportImage(url, named: title) }
-                if urls.count > 1 {
-                    tool("square.and.arrow.up.on.square", "Export All Images…") { NoteStore.exportImages(urls, named: title) }
-                }
+                tool("square.and.arrow.down", "Save Image…") { NoteStore.exportImage(url, named: title) }
                 tool("trash", "Delete Image…") { onDelete(url) }
-                if urls.count > 1 {
-                    tool("trash.square", "Delete All Images…", action: onDeleteAll)
-                }
             }
             Divider().frame(height: 18).overlay(Color.white.opacity(0.3))
-            tool("xmark", "Close") { current = nil }
+            tool("xmark", "Close", action: close)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 9)
         .background(.black.opacity(0.45), in: Capsule())
-        .padding(.top, 16)
+    }
+
+    /// Whole-set actions, tucked in the corner; both ask before doing anything.
+    private var moreMenu: some View {
+        Menu {
+            Button("Save All Images…", systemImage: "square.and.arrow.down.on.square") {
+                NoteStore.exportImages(urls, named: title)
+            }
+            Button("Delete All Images…", systemImage: "trash", role: .destructive, action: onDeleteAll)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 36, height: 36)
+                .background(.black.opacity(0.45), in: Circle())
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .labelStyle(.titleAndIcon)
+        .help("More")
+    }
+
+    private var filmstrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(urls, id: \.self) { url in
+                        AttachmentThumb(url: url, side: 52) { current = url }
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(.white, lineWidth: url == current ? 2 : 0)
+                            )
+                            .opacity(url == current ? 1 : 0.55)
+                            .id(url)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .frame(maxWidth: min(CGFloat(urls.count) * 60 + 24, 560), maxHeight: 68)
+            .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.bottom, 14)
+            .onChange(of: current, initial: true) {
+                withAnimation(.smooth(duration: 0.25)) { proxy.scrollTo(current, anchor: .center) }
+            }
+            .animation(.smooth(duration: 0.2), value: current)
+        }
     }
 
     private func tool(_ symbol: String, _ help: LocalizedStringKey, action: @escaping () -> Void) -> some View {
@@ -216,6 +233,13 @@ struct ImageLightbox: View {
         .buttonStyle(.plain)
     }
 
+    private func close() {
+        withAnimation(ImageLightbox.motion) { current = nil }
+    }
+
+    /// Opening and closing both use this, so the expansion and its reverse match.
+    static let motion = Animation.spring(duration: 0.38, bounce: 0.12)
+
     private func step(_ offset: Int) {
         guard !urls.isEmpty else { return }
         current = urls[(index + offset + urls.count) % urls.count]
@@ -223,12 +247,12 @@ struct ImageLightbox: View {
 
     /// Screen-sized decode off the main thread, so huge photos stay smooth.
     private func load() async {
-        image.value = nil
         guard let url = current else { return }
         let side = (NSScreen.main?.frame.size).map { max($0.width, $0.height) * 2 } ?? 3000
         let state = image
         ThumbnailCache.shared.thumbnail(for: url, size: side / 2) { picture in
-            if current == url { state.value = picture }
+            guard current == url else { return }
+            withAnimation(.easeOut(duration: 0.15)) { state.value = picture }
         }
     }
 }

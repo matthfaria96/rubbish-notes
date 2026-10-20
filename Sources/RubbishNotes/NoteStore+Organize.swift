@@ -68,6 +68,38 @@ extension NoteStore {
     }
 }
 
+// MARK: Blocks
+
+extension NoteStore {
+    func blocks(of id: UUID) -> [String] {
+        notes.first { $0.id == id }?.blocks ?? []
+    }
+
+    /// Adds a block (empty, or pasted text) at the end. Returns its position.
+    @discardableResult
+    func addBlock(to id: UUID, text: String = "") -> Int? {
+        guard notes.contains(where: { $0.id == id }) else { return nil }
+        let rest = blocks(of: id)
+        updateNote(id) { $0.blocks = rest + [text] }
+        return rest.count
+    }
+
+    func updateBlock(_ index: Int, of id: UUID, to text: String) {
+        let current = blocks(of: id)
+        guard current.indices.contains(index), current[index] != text else { return }
+        updateNote(id) { entry in
+            entry.blocks = current.enumerated().map { $0.offset == index ? text : $0.element }
+        }
+    }
+
+    func removeBlock(_ index: Int, of id: UUID) {
+        let current = blocks(of: id)
+        guard current.indices.contains(index) else { return }
+        let rest = current.enumerated().filter { $0.offset != index }.map(\.element)
+        updateNote(id) { $0.blocks = rest.isEmpty ? nil : rest }
+    }
+}
+
 // MARK: Image attachments
 
 extension NoteStore {
