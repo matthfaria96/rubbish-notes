@@ -351,7 +351,8 @@ final class NoteStore: ObservableObject {
         }
         box = .inbox
         let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
-                              lastOpened: Date(), createdAt: Date(), box: .inbox, autoNamed: name == nil)
+                              lastOpened: Date(), createdAt: Date(), box: .inbox, autoNamed: name == nil,
+                              status: .inProgress)
         notes.append(entry)
         previews[entry.id] = Self.preview(of: content)
         contents[entry.id] = content

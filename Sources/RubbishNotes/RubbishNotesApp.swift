@@ -12,6 +12,7 @@ enum Prefs {
     static let ruled = "RubbishNotes.ruledLines"
     static let floatOnTop = "RubbishNotes.floatOnTop"
     static let activeNote = "RubbishNotes.activeNoteID"
+    static let sidebarStatus = "RubbishNotes.sidebarStatus"
     static let didSeed = "RubbishNotes.didSeedStarters"
     static let defaultFontSize: Double = 15
 }

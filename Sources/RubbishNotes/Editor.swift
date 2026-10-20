@@ -85,6 +85,11 @@ final class EditorTextView: NSTextView {
 
     override func pasteAsRichText(_ sender: Any?) { paste(sender) }
 
+    /// A plain-text view otherwise disables Paste (and refuses drops) when only an image is offered.
+    override var readablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        super.readablePasteboardTypes + [.png, .tiff, .fileURL]
+    }
+
     // Images dropped on the text go to the footer instead of becoming text.
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         takeImages(from: sender.draggingPasteboard) || super.performDragOperation(sender)
@@ -96,8 +101,8 @@ final class EditorTextView: NSTextView {
         if !files.isEmpty { return onImages?(files, nil) ?? false }
         // Screenshots and copied images arrive as data; text with an image keeps the text.
         guard pasteboard.string(forType: .string) == nil,
-              let type = pasteboard.availableType(from: [.png, .tiff]),
-              let data = pasteboard.data(forType: type) else { return false }
+              pasteboard.canReadObject(forClasses: [NSImage.self], options: nil),
+              let data = NSImage(pasteboard: pasteboard)?.tiffRepresentation else { return false }
         return onImages?([], data) ?? false
     }
 

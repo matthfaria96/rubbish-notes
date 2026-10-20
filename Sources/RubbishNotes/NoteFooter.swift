@@ -40,67 +40,9 @@ struct StatusMark: View {
 
     var body: some View {
         Circle()
-            .fill(status.color.gradient)
-            .frame(width: 8, height: 8)
-            .shadow(color: status.color.opacity(0.7), radius: 2.5)
+            .fill(status.color)
+            .frame(width: 5, height: 5)
+            .opacity(0.75)
             .accessibilityLabel(status.title)
-    }
-}
-
-/// Images kept with the note as reminders, small in the footer, out of the text.
-struct AttachmentStrip: View {
-    let noteID: UUID
-    let urls: [URL]
-    let onRemove: (String) -> Void
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(urls, id: \.self) { url in
-                AttachmentThumb(url: url) { onRemove(url.lastPathComponent) }
-            }
-        }
-        .padding(5)
-        .compatGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private struct AttachmentThumb: View {
-    static let side: CGFloat = 40
-    let url: URL
-    let onRemove: () -> Void
-    @StateObject private var image = ViewState<NSImage?>(nil)
-    @StateObject private var hovering = ViewState(false)
-
-    var body: some View {
-        Group {
-            if let picture = image.value {
-                Image(nsImage: picture).resizable().scaledToFill()
-            } else {
-                Color.secondary.opacity(0.15)
-            }
-        }
-        .frame(width: Self.side, height: Self.side)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(alignment: .topTrailing) {
-            if hovering.value {
-                Button(action: onRemove) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, .black.opacity(0.6))
-                }
-                .buttonStyle(.plain)
-                .offset(x: 5, y: -5)
-                .help("Remove Image")
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { NSWorkspace.shared.open(url) }
-        .onHover { hovering.value = $0 }
-        .help(L("Open Image"))
-        .onAppear {
-            let state = image
-            ThumbnailCache.shared.thumbnail(for: url, size: Self.side) { state.value = $0 }
-        }
     }
 }

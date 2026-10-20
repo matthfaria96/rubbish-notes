@@ -127,8 +127,7 @@ struct SidebarView: View {
             note: note,
             preview: store.previews[note.id] ?? "",
             modified: note.location == .trash ? note.trashedAt : store.modified[note.id],
-            renamingID: $renaming.value,
-            selected: store.activeID == note.id
+            renamingID: $renaming.value
         )
         .tag(note.id)
     }
@@ -140,9 +139,9 @@ struct NoteRow: View {
     let preview: String
     let modified: Date?
     @Binding var renamingID: UUID?
-    let selected: Bool
     @StateObject private var draftState = ViewState("")
     @StateObject private var hoverState = ViewState(false)
+    @AppStorage(Prefs.sidebarStatus) private var sidebarStatus = true
     @FocusState private var nameFocused: Bool
 
     private var isRenaming: Bool { renamingID == note.id }
@@ -164,8 +163,8 @@ struct NoteRow: View {
                         }
                         .onChange(of: nameFocused) { if !nameFocused, isRenaming { commitRename() } }
                 } else {
-                    HStack(spacing: 6) {
-                        StatusMark(status: note.currentStatus)
+                    HStack(spacing: 5) {
+                        if sidebarStatus { StatusMark(status: note.currentStatus) }
                         Text(note.title)
                             .font(.body.weight(.semibold))
                             .lineLimit(1)
@@ -183,16 +182,15 @@ struct NoteRow: View {
                 .font(.subheadline)
             }
             Spacer(minLength: 0)
-            if (hoverState.value || selected) && canRename && !isRenaming {
+            if hoverState.value && canRename && !isRenaming {
                 Button(action: startRename) {
                     Image(systemName: "pencil")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
                         .frame(width: 30, height: 30)
-                        .contentShape(Circle())
+                        .contentShape(Rectangle())
                 }
-                .compatGlassButtonStyle()
-                .buttonBorderShape(.circle)
-                .controlSize(.regular)
+                .buttonStyle(.plain)
                 .help("Rename Note (or double-click the title)")
                 .accessibilityLabel("Rename")
                 .transition(.scale(scale: 0.8).combined(with: .opacity))

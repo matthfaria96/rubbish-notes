@@ -118,6 +118,50 @@ extension NoteStore {
         }
     }
 
+    func removeAllAttachments(of id: UUID) {
+        removeAttachmentFolder(of: id)
+        updateNote(id) { $0.attachments = nil }
+    }
+
+    static func copyImage(_ url: URL) {
+        guard let image = NSImage(contentsOf: url) else { return NSSound.beep() }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+    }
+
+    /// Saves one image where the user picks.
+    static func exportImage(_ url: URL, named title: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(sanitize(title)).\(url.pathExtension)"
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        do {
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.copyItem(at: url, to: dest)
+        } catch {
+            NSSound.beep()
+        }
+    }
+
+    /// Copies every image into a folder the user picks, numbered after the note.
+    static func exportImages(_ urls: [URL], named title: String) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = L("Export")
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        let base = sanitize(title)
+        for (index, url) in urls.enumerated() {
+            var dest = folder.appendingPathComponent("\(base) \(index + 1).\(url.pathExtension)")
+            var n = 1
+            while FileManager.default.fileExists(atPath: dest.path) {
+                n += 1
+                dest = folder.appendingPathComponent("\(base) \(index + 1)-\(n).\(url.pathExtension)")
+            }
+            do { try FileManager.default.copyItem(at: url, to: dest) } catch { NSSound.beep() }
+        }
+    }
+
     func removeAttachmentFolder(of id: UUID) {
         try? FileManager.default.removeItem(at: attachmentFolder(of: id))
     }
@@ -146,11 +190,12 @@ extension NoteStore {
 /// Small, cached thumbnails decoded off the main thread (ImageIO, never the full image).
 final class ThumbnailCache {
     static let shared = ThumbnailCache()
-    private let cache = NSCache<NSURL, NSImage>()
+    private let cache = NSCache<NSString, NSImage>()
     private let queue = DispatchQueue(label: "RubbishNotes.thumbnails", qos: .userInitiated)
 
     func thumbnail(for url: URL, size: CGFloat, completion: @escaping (NSImage?) -> Void) {
-        if let hit = cache.object(forKey: url as NSURL) { return completion(hit) }
+        let key = "\(url.path)|\(Int(size))" as NSString
+        if let hit = cache.object(forKey: key) { return completion(hit) }
         queue.async { [cache] in
             let options: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -160,7 +205,7 @@ final class ThumbnailCache {
             let image = CGImageSourceCreateWithURL(url as CFURL, nil)
                 .flatMap { CGImageSourceCreateThumbnailAtIndex($0, 0, options as CFDictionary) }
                 .map { NSImage(cgImage: $0, size: .zero) }
-            if let image { cache.setObject(image, forKey: url as NSURL) }
+            if let image { cache.setObject(image, forKey: key) }
             DispatchQueue.main.async { completion(image) }
         }
     }

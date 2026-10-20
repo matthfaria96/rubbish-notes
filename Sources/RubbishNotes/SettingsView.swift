@@ -101,6 +101,7 @@ private struct EditorSettings: View {
     @AppStorage(Prefs.fontSize) private var fontSize = Prefs.defaultFontSize
     @AppStorage(Prefs.spellCheck) private var spellCheck = false
     @AppStorage(Prefs.ruled) private var ruled = false
+    @AppStorage(Prefs.sidebarStatus) private var sidebarStatus = true
 
     var body: some View {
         Form {
@@ -119,6 +120,7 @@ private struct EditorSettings: View {
             Section("Writing") {
                 Toggle("Check spelling while typing", isOn: $spellCheck)
                 Toggle("Ruled lines", isOn: $ruled)
+                Toggle("Show status dot in the sidebar", isOn: $sidebarStatus)
             }
             Section("Preview") {
                 Text("Written on rubbish, kept like treasure.")

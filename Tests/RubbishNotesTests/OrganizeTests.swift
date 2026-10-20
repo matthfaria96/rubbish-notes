@@ -13,17 +13,17 @@ private func makeTempStore() -> (NoteStore, URL, UserDefaults) {
 
 @Suite("Status")
 struct StatusTests {
-    @Test func newNotesAreOpenAndCycleInOrder() throws {
+    @Test func newNotesStartInProgressAndCycleInOrder() throws {
         let (store, root, _) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let id = try #require(store.newNote(name: "a"))
-        #expect(store.active?.currentStatus == .open)
-        store.cycleStatus(id)
         #expect(store.active?.currentStatus == .inProgress)
         store.cycleStatus(id)
         #expect(store.active?.currentStatus == .done)
         store.cycleStatus(id)
         #expect(store.active?.currentStatus == .open)
+        store.cycleStatus(id)
+        #expect(store.active?.currentStatus == .inProgress)
     }
 
     @Test func statusSurvivesRelaunch() throws {
@@ -81,5 +81,10 @@ struct AttachmentTests {
         #expect(store.text == "words")
         store.removeAttachment(urls[0].lastPathComponent, from: id)
         #expect(store.attachmentURLs(of: id).isEmpty)
+        #expect(store.attachImageData(tiff) && store.attachImageData(tiff))
+        #expect(store.attachmentURLs(of: id).count == 2)
+        store.removeAllAttachments(of: id)
+        #expect(store.attachmentURLs(of: id).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: store.attachmentFolder(of: id).path))
     }
 }

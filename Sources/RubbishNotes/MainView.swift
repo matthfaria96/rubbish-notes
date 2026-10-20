@@ -19,6 +19,10 @@ struct MainView: View {
     @StateObject private var toastTask = ViewState<DispatchWorkItem?>(nil)
     @StateObject private var searchState = ViewState("")
     @StateObject private var columns = ViewState(NavigationSplitViewVisibility.all)
+    @StateObject private var lightbox = ViewState<URL?>(nil)
+    @StateObject private var shelfExpanded = ViewState(false)
+    /// Images waiting for the delete confirmation.
+    @StateObject private var pendingDelete = ViewState<[URL]>([])
 
     private var appearance: AppearanceChoice { AppearanceChoice(rawValue: appearanceRaw) ?? .system }
     private var iconStyle: IconStyle { IconStyle(rawValue: iconStyleRaw) ?? .blue }
@@ -29,6 +33,7 @@ struct MainView: View {
         if let forced = appearance.scheme { return forced }
         return theme.isDark.map { $0 ? .dark : .light }
     }
+    private var hasImages: Bool { store.activeID.map { !store.attachmentURLs(of: $0).isEmpty } ?? false }
     private var isTrashed: Bool { store.active?.location == .trash }
 
     var body: some View {
@@ -93,15 +98,30 @@ struct MainView: View {
                     onRichPaste: { showToast(L("Formatting Removed")) },
                     onImages: attachImages
                 )
-                .overlay(alignment: .bottom) {
+                .overlay(alignment: hasImages ? .bottomLeading : .bottom) {
                     if !focusMode {
-                        if isTrashed { trashBanner } else { statusCapsule }
+                        if isTrashed {
+                            trashBanner
+                        } else if !shelfExpanded.value {
+                            // Moves aside when images sit in the other corner.
+                            statusCapsule.padding(.leading, hasImages ? 16 : 0)
+                        }
                     }
                 }
                 .overlay(alignment: .bottomTrailing) { attachmentStrip }
             }
         }
+        .overlay { lightboxView }
         .overlay(alignment: .top) { toast }
+        .onChange(of: store.activeID) {
+            lightbox.value = nil
+            shelfExpanded.value = false
+        }
+        .confirmationDialog(deleteTitle, isPresented: deleteBinding) {
+            Button(L("Delete"), role: .destructive) { confirmDelete() }
+        } message: {
+            Text("You can’t undo this.")
+        }
         .navigationTitle(store.active?.title ?? "Rubbish Notes")
         .navigationSubtitle(focusMode ? "" : subtitle)
         .toolbar {
@@ -245,12 +265,60 @@ struct MainView: View {
         if !focusMode, let id = store.activeID {
             let urls = store.attachmentURLs(of: id)
             if !urls.isEmpty {
-                AttachmentStrip(noteID: id, urls: urls) { store.removeAttachment($0, from: id) }
+                AttachmentShelf(
+                    urls: urls,
+                    expanded: $shelfExpanded.value,
+                    onOpen: { lightbox.value = $0 },
+                    onExportAll: { NoteStore.exportImages(urls, named: store.active?.title ?? "") },
+                    onDeleteAll: { pendingDelete.value = urls }
+                )
                     .padding(.trailing, 16)
                     .padding(.bottom, 10)
                     .transition(.scale(scale: 0.9, anchor: .bottomTrailing).combined(with: .opacity))
             }
         }
+    }
+
+    @ViewBuilder
+    private var lightboxView: some View {
+        if let id = store.activeID, lightbox.value != nil {
+            let urls = store.attachmentURLs(of: id)
+            ImageLightbox(
+                urls: urls,
+                current: $lightbox.value,
+                title: store.active?.title ?? "",
+                onDelete: { pendingDelete.value = [$0] },
+                onDeleteAll: { pendingDelete.value = urls }
+            )
+            .transition(.opacity)
+        }
+    }
+
+    private var deleteTitle: String {
+        pendingDelete.value.count == 1 ? L("Delete this image?") : L("Delete %ld images?", pendingDelete.value.count)
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(get: { !pendingDelete.value.isEmpty }, set: { if !$0 { pendingDelete.value = [] } })
+    }
+
+    /// Deletes the confirmed images; the lightbox moves on to a neighbour or closes.
+    private func confirmDelete() {
+        guard let id = store.activeID else { return }
+        let doomed = pendingDelete.value
+        let before = store.attachmentURLs(of: id)
+        pendingDelete.value = []
+        if doomed.count == before.count {
+            store.removeAllAttachments(of: id)
+        } else {
+            doomed.forEach { store.removeAttachment($0.lastPathComponent, from: id) }
+        }
+        let rest = store.attachmentURLs(of: id)
+        if let open = lightbox.value, doomed.contains(open) {
+            let position = before.firstIndex(of: open) ?? 0
+            lightbox.value = rest.isEmpty ? nil : rest[min(position, rest.count - 1)]
+        }
+        if rest.isEmpty { shelfExpanded.value = false }
     }
 
     /// Images go to the open note's footer, never into its text.
