@@ -70,6 +70,23 @@ final class EditorTextView: NSTextView {
     }
 
     // Only words come in: formatting from rich pastes is dropped.
+    /// The footer's buttons float over the bottom of the text; there the
+    /// pointer is an arrow, not the text I-beam, since a click there acts.
+    private static let footerBand: CGFloat = 64
+
+    private func isOverFooter(_ event: NSEvent) -> Bool {
+        convert(event.locationInWindow, from: nil).y > visibleRect.maxY - Self.footerBand
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        if isOverFooter(event) { NSCursor.arrow.set() }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if isOverFooter(event) { NSCursor.arrow.set() } else { super.cursorUpdate(with: event) }
+    }
+
     override func paste(_ sender: Any?) {
         let pasteboard = NSPasteboard.general
         let richTypes: [NSPasteboard.PasteboardType] = [.rtf, .rtfd, .html, NSPasteboard.PasteboardType("com.apple.flat-rtfd")]

@@ -137,3 +137,13 @@ struct BlockTests {
         #expect(NoteStore(rootDir: root, defaults: defaults).notes.count == 2)
     }
 }
+
+@Suite("Blocks panel")
+struct BlocksPanelTests {
+    @Test func heightGrowsFromMinimumToMaximum() {
+        #expect(BlocksPanel.height(for: 0) == BlocksPanel.minHeight)
+        #expect(BlocksPanel.height(for: 1) > BlocksPanel.minHeight)
+        #expect(BlocksPanel.height(for: 1) < BlocksPanel.maxHeight)
+        #expect(BlocksPanel.height(for: 9) == BlocksPanel.maxHeight)
+    }
+}

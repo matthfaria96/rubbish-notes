@@ -25,9 +25,15 @@ struct BlocksButton: View {
     }
 }
 
-/// Always the same size, so it never jumps as blocks come and go.
+/// Grows with its blocks: when empty it is a little taller than the images
+/// panel, and it stops at a fixed maximum, scrolling beyond that.
 struct BlocksPanel: View {
-    static let size = CGSize(width: 440, height: 520)
+    static let width: CGFloat = 440
+    static let minHeight: CGFloat = 200
+    static let maxHeight: CGFloat = 520
+    /// Header plus padding, and one block card with its spacing.
+    private static let chrome: CGFloat = 84
+    private static let cardHeight: CGFloat = 212
     @EnvironmentObject private var store: NoteStore
     let noteID: UUID
     let onClose: () -> Void
@@ -54,7 +60,7 @@ struct BlocksPanel: View {
             if blocks.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "square.stack.3d.up")
-                        .font(.system(size: 34))
+                        .font(.system(size: 26))
                         .foregroundStyle(.tertiary)
                     Text("Keep long texts here, apart from your notes. Paste one in, copy it out whenever you need it.")
                         .font(.callout)
@@ -62,7 +68,8 @@ struct BlocksPanel: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(30)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
@@ -75,7 +82,12 @@ struct BlocksPanel: View {
                 }
             }
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: Self.width, height: Self.height(for: blocks.count))
+        .animation(.smooth(duration: 0.25), value: blocks.count)
+    }
+
+    static func height(for count: Int) -> CGFloat {
+        min(maxHeight, max(minHeight, chrome + CGFloat(count) * cardHeight))
     }
 
     private func pasteBlock() {
