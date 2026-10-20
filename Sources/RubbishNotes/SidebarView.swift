@@ -165,8 +165,8 @@ struct SidebarView: View {
 
     /// Quiet on purpose: a small floating chip, and it always asks first.
     private var clearInboxButton: some View {
+        // Centred above the box switcher.
         HStack {
-            Spacer()
             Button { confirmClear.value = true } label: {
                 Label("Delete All", systemImage: "trash")
                     .font(.caption)

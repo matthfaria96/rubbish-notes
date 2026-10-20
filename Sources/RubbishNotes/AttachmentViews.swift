@@ -85,14 +85,19 @@ struct ImageLightbox: View {
     let title: String
     let onDelete: (URL) -> Void
     let onDeleteAll: () -> Void
+    /// The lightbox wears the note's theme: its page color and text color.
+    var theme: EditorTheme = .standard
     @StateObject private var image = ViewState<NSImage?>(nil)
     @FocusState private var focused: Bool
+
+    private var chrome: Color { Color(nsColor: theme.backgroundNS()) }
+    private var ink: Color { Color(nsColor: theme.textNS()) }
 
     private var index: Int { current.flatMap { urls.firstIndex(of: $0) } ?? 0 }
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.92)
+            chrome.opacity(0.94)
                 .ignoresSafeArea()
                 .onTapGesture(perform: close)
             picture
@@ -150,12 +155,13 @@ struct ImageLightbox: View {
                 tool("square.and.arrow.down", "Save Image…") { NoteStore.exportImage(url, named: title) }
                 tool("trash", "Delete Image…") { onDelete(url) }
             }
-            Divider().frame(height: 18).overlay(Color.white.opacity(0.3))
+            Divider().frame(height: 18).overlay(ink.opacity(0.3))
             tool("xmark", "Close", action: close)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 9)
-        .background(.black.opacity(0.45), in: Capsule())
+        .background(chrome.opacity(0.9), in: Capsule())
+        .overlay(Capsule().strokeBorder(ink.opacity(0.15)))
     }
 
     /// Whole-set actions, tucked in the corner; both ask before doing anything.
@@ -168,9 +174,10 @@ struct ImageLightbox: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(ink.opacity(0.9))
                 .frame(width: 36, height: 36)
-                .background(.black.opacity(0.45), in: Circle())
+                .background(chrome.opacity(0.9), in: Circle())
+                .overlay(Circle().strokeBorder(ink.opacity(0.15)))
                 .contentShape(Circle())
         }
         .menuStyle(.button)
@@ -189,7 +196,7 @@ struct ImageLightbox: View {
                         AttachmentThumb(url: url, side: 52) { current = url }
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(.white, lineWidth: url == current ? 2 : 0)
+                                    .strokeBorder(ink, lineWidth: url == current ? 2 : 0)
                             )
                             .opacity(url == current ? 1 : 0.55)
                             .id(url)
@@ -199,7 +206,7 @@ struct ImageLightbox: View {
                 .padding(.vertical, 8)
             }
             .frame(maxWidth: min(CGFloat(urls.count) * 60 + 24, 560), maxHeight: 68)
-            .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(chrome.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .padding(.bottom, 14)
             .onChange(of: current, initial: true) {
                 withAnimation(.smooth(duration: 0.25)) { proxy.scrollTo(current, anchor: .center) }
@@ -212,7 +219,7 @@ struct ImageLightbox: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(ink.opacity(0.9))
                 .frame(width: 26, height: 26)
                 .contentShape(Rectangle())
         }
@@ -225,9 +232,10 @@ struct ImageLightbox: View {
         Button { step(offset) } label: {
             Image(systemName: symbol)
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(ink.opacity(0.85))
                 .frame(width: 44, height: 44)
-                .background(.black.opacity(0.4), in: Circle())
+                .background(chrome.opacity(0.9), in: Circle())
+                .overlay(Circle().strokeBorder(ink.opacity(0.15)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

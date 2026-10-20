@@ -345,7 +345,8 @@ struct MainView: View {
                 current: $lightbox.value,
                 title: store.active?.title ?? "",
                 onDelete: { pendingDelete.value = [$0] },
-                onDeleteAll: { pendingDelete.value = urls }
+                onDeleteAll: { pendingDelete.value = urls },
+                theme: theme
             )
             // Grows out of the thumbnails' corner and shrinks back into it.
             .transition(.scale(scale: 0.12, anchor: .bottomTrailing).combined(with: .opacity))
