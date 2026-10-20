@@ -2,8 +2,9 @@ import AppKit
 import SwiftUI
 
 /// Colors for the writing area. "Default" uses the system text colors and
-/// the app's accent; the others are the published palettes of well-known
-/// free color schemes (all MIT or similarly licensed).
+/// the app's accent. The rest are chosen to look clearly different from one
+/// another: paper tones, soft pastels, deep colors and a few well-known
+/// free schemes (MIT or similarly licensed).
 struct EditorTheme: Identifiable, Equatable {
     let id: String
     let name: String
@@ -25,8 +26,8 @@ struct EditorTheme: Identifiable, Equatable {
 
     static func == (a: EditorTheme, b: EditorTheme) -> Bool { a.id == b.id }
 
-    /// Scheme names are proper names; only "Default" is translated.
-    var displayName: String { id == "default" ? L("Default") : name }
+    /// Published scheme names (Dracula, Solarized) stay as they are; ours are translated.
+    var displayName: String { id == "default" ? L("Default") : L(name) }
 
     static func named(_ id: String) -> EditorTheme { all.first { $0.id == id } ?? .standard }
 
@@ -45,20 +46,21 @@ struct EditorTheme: Identifiable, Equatable {
                     secondary: NSColor(hex: comment), accent: NSColor(hex: accent), selection: NSColor(hex: selection))
     }
 
+    /// Light first, then dark; each one a different color family.
     static let all: [EditorTheme] = [
         .standard,
+        light("paper", "Paper", bg: 0xF8F1E1, fg: 0x3B2F25, comment: 0x9C8A72, accent: 0xC0392B, selection: 0xEBDDBE),
+        light("mint", "Mint", bg: 0xE3F5EA, fg: 0x1E4631, comment: 0x6E9A80, accent: 0x14996B, selection: 0xBFE6CF),
+        light("sky", "Sky", bg: 0xE4F0FC, fg: 0x1B3A5C, comment: 0x6F8DB0, accent: 0x1E74D6, selection: 0xC3DCF7),
+        light("blossom", "Blossom", bg: 0xFDE9EF, fg: 0x5A2236, comment: 0xB27A8E, accent: 0xD6336C, selection: 0xF8C9D8),
+        light("lavender", "Lavender", bg: 0xEFE9FB, fg: 0x35265C, comment: 0x8D7FB5, accent: 0x7048E8, selection: 0xDCD0F7),
+        light("solarized-light", "Solarized Light", bg: 0xFDF6E3, fg: 0x586E75, comment: 0x93A1A1, accent: 0x268BD2, selection: 0xEEE8D5),
+        dark("midnight", "Midnight", bg: 0x0B1D3A, fg: 0xE3EAF5, comment: 0x6F84A8, accent: 0xF5C451, selection: 0x1F3A66),
+        dark("forest", "Forest", bg: 0x12261B, fg: 0xE6EFD9, comment: 0x7C9A80, accent: 0x9BD86B, selection: 0x24452F),
+        dark("plum", "Plum", bg: 0x2B1433, fg: 0xF3E4F5, comment: 0x9C7AA6, accent: 0xF08BD6, selection: 0x4A2556),
+        dark("espresso", "Espresso", bg: 0x2B1F17, fg: 0xF1E3CF, comment: 0xA08A70, accent: 0xE9965A, selection: 0x4A3627),
         dark("dracula", "Dracula", bg: 0x282A36, fg: 0xF8F8F2, comment: 0x6272A4, accent: 0xBD93F9, selection: 0x44475A),
-        dark("nord", "Nord", bg: 0x2E3440, fg: 0xD8DEE9, comment: 0x616E88, accent: 0x88C0D0, selection: 0x434C5E),
-        dark("one-dark", "One Dark", bg: 0x282C34, fg: 0xABB2BF, comment: 0x5C6370, accent: 0x61AFEF, selection: 0x3E4451),
-        dark("monokai", "Monokai", bg: 0x272822, fg: 0xF8F8F2, comment: 0x75715E, accent: 0xA6E22E, selection: 0x49483E),
-        dark("tokyo-night", "Tokyo Night", bg: 0x1A1B26, fg: 0xA9B1D6, comment: 0x565F89, accent: 0x7AA2F7, selection: 0x33467C),
-        dark("catppuccin-mocha", "Catppuccin Mocha", bg: 0x1E1E2E, fg: 0xCDD6F4, comment: 0x6C7086, accent: 0xCBA6F7, selection: 0x45475A),
-        dark("gruvbox-dark", "Gruvbox Dark", bg: 0x282828, fg: 0xEBDBB2, comment: 0x928374, accent: 0xFABD2F, selection: 0x504945),
-        dark("rose-pine", "Rosé Pine", bg: 0x191724, fg: 0xE0DEF4, comment: 0x6E6A86, accent: 0xEBBCBA, selection: 0x403D52),
-        dark("solarized-dark", "Solarized Dark", bg: 0x002B36, fg: 0x839496, comment: 0x586E75, accent: 0x268BD2, selection: 0x073642),
-        light("solarized-light", "Solarized Light", bg: 0xFDF6E3, fg: 0x657B83, comment: 0x93A1A1, accent: 0x268BD2, selection: 0xEEE8D5),
-        light("catppuccin-latte", "Catppuccin Latte", bg: 0xEFF1F5, fg: 0x4C4F69, comment: 0x9CA0B0, accent: 0x8839EF, selection: 0xCCD0DA),
-        light("github-light", "GitHub Light", bg: 0xFFFFFF, fg: 0x24292F, comment: 0x6E7781, accent: 0x0969DA, selection: 0xDDF4FF),
+        dark("terminal", "Terminal", bg: 0x050805, fg: 0x39FF7A, comment: 0x1E8C45, accent: 0x39FF7A, selection: 0x15401F),
     ]
 }
 

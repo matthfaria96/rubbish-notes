@@ -108,6 +108,17 @@
 "Block %ld" = "Bloc %ld";
 "Copy Block" = "Copier le bloc";
 "Delete Block" = "Supprimer le bloc";
+"Licenses" = "Licences";
+"Paper" = "Papier";
+"Mint" = "Menthe";
+"Sky" = "Ciel";
+"Blossom" = "Fleur";
+"Lavender" = "Lavande";
+"Midnight" = "Minuit";
+"Forest" = "Forêt";
+"Plum" = "Prune";
+"Espresso" = "Espresso";
+"Terminal" = "Terminal";
 "Change Name" = "Changer le nom";
 "Click to rename" = "Cliquez pour renommer";
 "Clear" = "Effacer";

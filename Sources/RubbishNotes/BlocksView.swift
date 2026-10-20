@@ -16,7 +16,7 @@ struct BlocksButton: View {
                 if count > 0 { Text("\(count)").monospacedDigit() }
             }
             .font(.callout)
-            .foregroundStyle(open ? Color.accentColor : .secondary)
+            .foregroundStyle(open ? .primary : .secondary)
             .modifier(LegacyFooterPadding())
         }
         .compatFooterButton()

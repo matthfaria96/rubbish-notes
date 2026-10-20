@@ -182,8 +182,9 @@ private struct ThemeSettings: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 ThemeSample(theme: previewing, fallbackAccent: accent, large: true)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator))
+                    .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
                     .animation(.easeOut(duration: 0.15), value: previewing.id)
                 HStack {
                     Text(previewing.displayName).font(.headline)
@@ -232,8 +233,10 @@ private struct ThemeCard: View {
                             .strokeBorder(selected ? Color(nsColor: accent) : Color(nsColor: .separatorColor),
                                           lineWidth: selected ? 2.5 : 1)
                     )
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
+                    ThemeSwatch(theme: theme, accent: accent)
                     Text(theme.displayName).lineLimit(1)
+                    Spacer(minLength: 0)
                     if selected {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Color(nsColor: accent))
                     }
@@ -245,5 +248,26 @@ private struct ThemeCard: View {
         .buttonStyle(.plain)
         .help(theme.displayName)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Background, text and accent as three overlapping dots.
+private struct ThemeSwatch: View {
+    let theme: EditorTheme
+    let accent: NSColor
+
+    var body: some View {
+        HStack(spacing: -4) {
+            dot(theme.backgroundNS())
+            dot(theme.textNS())
+            dot(theme.accentNS(fallback: accent))
+        }
+    }
+
+    private func dot(_ color: NSColor) -> some View {
+        Circle()
+            .fill(Color(nsColor: color))
+            .frame(width: 11, height: 11)
+            .overlay(Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5))
     }
 }

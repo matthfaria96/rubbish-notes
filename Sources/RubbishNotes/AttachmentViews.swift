@@ -265,7 +265,7 @@ struct ImagesHintButton: View {
         Button { open.toggle() } label: {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.callout)
-                .foregroundStyle(open ? Color.accentColor : .secondary)
+                .foregroundStyle(open ? .primary : .secondary)
                 .modifier(LegacyFooterPadding())
         }
         .compatFooterButton()

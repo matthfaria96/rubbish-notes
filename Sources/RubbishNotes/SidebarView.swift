@@ -12,6 +12,8 @@ struct SidebarView: View {
     var body: some View {
         let pinned = store.pinnedNotes.filter { store.matches($0, query: query) }
         let others = store.listNotes.filter { store.matches($0, query: query) }
+        // The list ends above the box switcher instead of scrolling under it.
+        VStack(spacing: 0) {
         List(selection: selection) {
             if !pinned.isEmpty {
                 Section("Pinned") {
@@ -26,15 +28,15 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .compatHardBottomEdge()
         .overlay {
             if pinned.isEmpty && others.isEmpty {
                 if query.isEmpty { emptyBox } else { ContentUnavailableView.search(text: query) }
             }
         }
+            boxSwitcher
+        }
         // Stays put at the top while only the notes scroll beneath it.
         .safeAreaInset(edge: .top, spacing: 0) { searchField }
-        .safeAreaInset(edge: .bottom, spacing: 0) { boxSwitcher }
         .onDeleteCommand {
             guard let id = store.activeID, store.box != .trash else { return }
             store.trash(id)

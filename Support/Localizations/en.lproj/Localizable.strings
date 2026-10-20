@@ -108,6 +108,17 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Copy Block";
 "Delete Block" = "Delete Block";
+"Licenses" = "Licenses";
+"Paper" = "Paper";
+"Mint" = "Mint";
+"Sky" = "Sky";
+"Blossom" = "Blossom";
+"Lavender" = "Lavender";
+"Midnight" = "Midnight";
+"Forest" = "Forest";
+"Plum" = "Plum";
+"Espresso" = "Espresso";
+"Terminal" = "Terminal";
 "Change Name" = "Change Name";
 "Click to rename" = "Click to rename";
 "Clear" = "Clear";

@@ -1,9 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// Settings › About: centered and quiet, like About This Mac.
+/// Settings › About: the icon glowing in the app's color, the version in a
+/// glass capsule and the links as glass buttons.
 struct AboutSettings: View {
+    @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
     @StateObject private var showLicenses = ViewState(false)
+
+    private var accent: Color { (IconStyle(rawValue: iconStyleRaw) ?? .blue).accent }
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -17,48 +21,61 @@ struct AboutSettings: View {
         VStack(spacing: 0) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
-                .frame(width: 96, height: 96)
-                .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
-                .padding(.bottom, 18)
+                .frame(width: 112, height: 112)
+                .shadow(color: accent.opacity(0.45), radius: 26, y: 10)
+                .padding(.bottom, 16)
             Text(verbatim: "Rubbish Notes")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
             Text(verbatim: version)
-                .font(.system(size: 12))
+                .font(.system(size: 11.5, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
-                .padding(.top, 4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .compatGlass(in: Capsule())
+                .padding(.top, 8)
 
             Text("Rubbish Notes is a plain-text notes app. Every note is a real .txt file, saved a moment after you stop typing, and pasted text arrives without formatting.", tableName: "About")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
-                .frame(maxWidth: 460)
-                .padding(.top, 26)
+                .frame(maxWidth: 400)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 22)
+
+            HStack(spacing: 10) {
+                Link(destination: URL(string: "https://witchmymac.com")!) {
+                    Label { Text(verbatim: "witchmymac.com") } icon: { Image(systemName: "globe") }
+                }
+                Link(destination: URL(string: "https://github.com/matthfaria96/rubbish-notes")!) {
+                    Label { Text(verbatim: "GitHub") } icon: { Image(systemName: "chevron.left.forwardslash.chevron.right") }
+                }
+                Button { showLicenses.value = true } label: {
+                    Label { Text(L("Licenses")) } icon: { Image(systemName: "doc.text") }
+                }
+            }
+            .compatGlassButtonStyle()
+            .controlSize(.regular)
+            .padding(.top, 22)
 
             Text("Rubbish Notes is free software under the GNU GPL v3.0.", tableName: "About")
-                .font(.system(size: 11.5))
+                .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 460)
-                .padding(.top, 14)
-
-            HStack(spacing: 18) {
-                Link("witchmymac.com", destination: URL(string: "http://witchmymac.com")!)
-                    .font(.system(size: 12))
-                Button { showLicenses.value = true } label: {
-                    Text("Open-source licenses", tableName: "About")
-                }
-                .buttonStyle(.link)
-                .font(.system(size: 12))
-            }
-            .padding(.top, 10)
+                .padding(.top, 18)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 36)
-        .padding(.bottom, 32)
+        .padding(.top, 34)
+        .padding(.bottom, 28)
         .padding(.horizontal, 20)
+        .background(alignment: .top) {
+            // A soft wash of the app's color behind the icon.
+            RadialGradient(colors: [accent.opacity(0.22), .clear], center: .top, startRadius: 10, endRadius: 280)
+                .frame(height: 300)
+                .allowsHitTesting(false)
+        }
         .sheet(isPresented: $showLicenses.value) { OpenSourceLicensesView() }
     }
 }

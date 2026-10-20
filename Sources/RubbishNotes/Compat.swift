@@ -21,24 +21,9 @@ extension View {
         }
     }
 
-    /// A footer button: native glass on macOS 26+, a material capsule before.
-    @ViewBuilder
+    /// A footer button: quiet clear glass, never filled with the accent color.
     func compatFooterButton() -> some View {
-        if #available(macOS 26, *) {
-            buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.large)
-        } else {
-            buttonStyle(.plain).compatGlass(in: Capsule())
-        }
-    }
-
-    /// Notes scrolling under the sidebar's foot get a clear edge on macOS 26+.
-    @ViewBuilder
-    func compatHardBottomEdge() -> some View {
-        if #available(macOS 26, *) {
-            scrollEdgeEffectStyle(.hard, for: .bottom)
-        } else {
-            self
-        }
+        buttonStyle(.plain).compatGlass(in: Capsule())
     }
 
     @ViewBuilder
@@ -51,16 +36,12 @@ extension View {
     }
 }
 
-/// Glass buttons size themselves on macOS 26+; the older plain style needs room.
+/// Room around a footer button's icon.
 struct LegacyFooterPadding: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content
-        } else {
-            content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .contentShape(Capsule())
-        }
+        content
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .contentShape(Capsule())
     }
 }
