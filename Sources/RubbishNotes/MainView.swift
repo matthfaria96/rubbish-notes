@@ -371,7 +371,6 @@ struct MainView: View {
         let hasSelection = selection.characters > 0
         let words = hasSelection ? selection.words : store.counts.words
         let characters = hasSelection ? selection.characters : store.counts.characters
-        let minutes = max(1, Int((Double(words) / 220).rounded()))
         return HStack(spacing: 6) {
             if let note = store.active {
                 StatusDots(status: note.currentStatus) { store.setStatus(note.id, $0) }
@@ -383,9 +382,6 @@ struct MainView: View {
             Text(characters == 1 ? L("1 character") : L("%ld characters", characters))
             if hasSelection {
                 Text("selected").foregroundStyle(iconStyle.accent)
-            } else if words > 0 {
-                Text("·").foregroundStyle(.tertiary)
-                Text(L("%ld min read", minutes))
             }
             }
             .allowsHitTesting(false)
