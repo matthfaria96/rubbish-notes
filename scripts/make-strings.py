@@ -120,6 +120,7 @@ T = [
 ("Its text will be removed from the note.", "Its text will be removed from the note.", "O texto dele sai da nota.", "Su texto se quitará de la nota.", "Son texte sera retiré de la note.", "Sein Text wird aus der Notiz entfernt.", "Il suo testo verrà tolto dalla nota."),
 ("Export Block as Markdown…", "Export Block as Markdown…", "Exportar Bloco como Markdown…", "Exportar bloque como Markdown…", "Exporter le bloc en Markdown…", "Block als Markdown exportieren …", "Esporta blocco come Markdown…"),
 ("Drag to move the block", "Drag to move the block", "Arraste para mover o bloco", "Arrastra para mover el bloque", "Faites glisser pour déplacer le bloc", "Ziehen, um den Block zu verschieben", "Trascina per spostare il blocco"),
+("Write or paste here…", "Write or paste here…", "Escreva ou cole aqui…", "Escribe o pega aquí…", "Écrivez ou collez ici…", "Hier schreiben oder einsetzen …", "Scrivi o incolla qui…"),
 ("Cancel", "Cancel", "Cancelar", "Cancelar", "Annuler", "Abbrechen", "Annulla"),
 ("Unarchive", "Unarchive", "Desarquivar", "Desarchivar", "Désarchiver", "Aus dem Archiv holen", "Togli dall’archivio"),
 ("Insert Note Block", "Insert Note Block", "Inserir Bloco de Anotação", "Insertar bloque de notas", "Insérer un bloc de notes", "Notizblock einfügen", "Inserisci blocco di note"),

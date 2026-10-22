@@ -112,6 +112,7 @@
 "Its text will be removed from the note." = "Son texte sera retiré de la note.";
 "Export Block as Markdown…" = "Exporter le bloc en Markdown…";
 "Drag to move the block" = "Faites glisser pour déplacer le bloc";
+"Write or paste here…" = "Écrivez ou collez ici…";
 "Cancel" = "Annuler";
 "Unarchive" = "Désarchiver";
 "Insert Note Block" = "Insérer un bloc de notes";

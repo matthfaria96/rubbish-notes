@@ -113,7 +113,10 @@ final class InlineBlockAttachment: NSTextAttachment {
 
     required init?(coder: NSCoder) { fatalError("not coded") }
 
-    static let collapsedSize = CGSize(width: 200, height: 28)
+    /// Wide enough for the label and a glimpse of the first line.
+    static let collapsedSize = CGSize(width: 380, height: 30)
+    /// Set when the toolbar's (+) makes it, so its text area takes the cursor once.
+    var isNew = false
     /// Header plus room for three lines of text.
     static let expandedHeight: CGFloat = 122
 }
@@ -159,6 +162,9 @@ struct InlineBlockView: View {
     @State private var draft: String?
     @State private var copied = false
     @State private var dragOffset: CGSize = .zero
+    @State private var hovering = false
+    /// A block just inserted takes the cursor.
+    var startsFocused = false
 
     private var text: Color { Color(nsColor: style.text) }
     private var secondary: Color { Color(nsColor: style.secondary) }
@@ -186,53 +192,78 @@ struct InlineBlockView: View {
         .allowsHitTesting(editable)
     }
 
-    private var chip: some View {
-        HStack(spacing: 2) {
-        grip
-        Button(action: onToggle) {
-            HStack(spacing: 6) {
-                Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
-                Image(systemName: "text.alignleft").font(.system(size: 11))
-                Text("Note block").font(.callout).lineLimit(1)
-                Spacer(minLength: 0)
+    /// The first line of the block, shown when it is folded.
+    private var preview: String {
+        (draft ?? content).split(whereSeparator: \.isNewline)
+            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { String($0.trimmingCharacters(in: .whitespaces)) } ?? ""
+    }
+
+    /// The top row: a click anywhere on it opens or folds the block; the
+    /// chevron at the far right shows which way it will go.
+    private func header(showMenu: Bool) -> some View {
+        HStack(spacing: 8) {
+            grip
+            Image(systemName: "text.alignleft").font(.system(size: 11, weight: .medium))
+            Text("Note block")
+                .font(.callout.weight(.medium))
+                .lineLimit(1)
+                .fixedSize()
+            if !expanded, !preview.isEmpty {
+                Text(preview)
+                    .font(.callout)
+                    .foregroundStyle(text.opacity(0.75))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            .foregroundStyle(secondary)
-            .padding(.trailing, 10)
+            Spacer(minLength: 4)
+            if showMenu { blockMenu }
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .bold))
+                .rotationEffect(.degrees(expanded ? 180 : 0))
+                .frame(width: 18, height: 20)
+        }
+        .foregroundStyle(secondary)
+        .padding(.horizontal, 6)
+        .frame(height: 26)
+        .background(text.opacity(hovering ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .onTapGesture(perform: onToggle)
+        .help(L(expanded ? "Collapse" : "Expand"))
+        .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+
+    private var chip: some View {
+        header(showMenu: false)
+            .padding(.horizontal, 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .help("Expand")
-        }
-        .padding(.leading, 4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(text.opacity(0.06), in: Capsule())
-        .overlay(Capsule().strokeBorder(text.opacity(0.14)))
+            .background(text.opacity(0.06), in: Capsule())
+            .overlay(Capsule().strokeBorder(text.opacity(0.14)))
     }
 
     private var box: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                grip
-                Button(action: onToggle) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
-                        Text("Note block").font(.callout.weight(.medium))
-                    }
-                    .contentShape(Rectangle())
-                }
-                .help("Collapse")
-                Spacer()
-                blockMenu
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(secondary)
-            BlockTextArea(text: draft ?? content, color: style.text, accent: style.accent, editable: editable) {
+        VStack(alignment: .leading, spacing: 4) {
+            header(showMenu: true)
+            BlockTextArea(text: draft ?? content, color: style.text, accent: style.accent,
+                          editable: editable, focusOnAppear: startsFocused) {
                 draft = $0
                 onEdit($0)
             }
+            .overlay(alignment: .topLeading) {
+                if (draft ?? content).isEmpty {
+                    Text("Write or paste here…")
+                        .font(.system(size: 13))
+                        .foregroundStyle(secondary.opacity(0.8))
+                        .padding(.leading, 4)
+                        .padding(.top, 2)
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(.horizontal, 6)
         }
-        .padding(10)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(text.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(text.opacity(0.14)))
@@ -296,6 +327,7 @@ struct BlockTextArea: NSViewRepresentable {
     let color: NSColor
     let accent: NSColor
     let editable: Bool
+    var focusOnAppear = false
     let onChange: (String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -314,6 +346,9 @@ struct BlockTextArea: NSViewRepresentable {
         view.allowsUndo = true
         view.delegate = context.coordinator
         view.string = text
+        if focusOnAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { view.window?.makeFirstResponder(view) }
+        }
         return scroll
     }
 

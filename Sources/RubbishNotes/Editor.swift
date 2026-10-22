@@ -86,7 +86,8 @@ final class EditorTextView: NSTextView {
     }
 
     private func blockView(for block: InlineBlockAttachment) -> InlineBlockView {
-        InlineBlockView(
+        defer { block.isNew = false }
+        return InlineBlockView(
             content: block.content,
             expanded: block.expanded,
             editable: isEditable,
@@ -112,7 +113,8 @@ final class EditorTextView: NSTextView {
             onDragEnded: { [weak self, weak block] translation in
                 guard let self, let block else { return }
                 self.move(block, by: translation)
-            }
+            },
+            startsFocused: block.isNew
         )
     }
 
@@ -249,7 +251,9 @@ final class EditorTextView: NSTextView {
         if range.location > 0, ns.character(at: range.location - 1) != 10 {
             piece.append(NSAttributedString(string: "\n", attributes: attributes))
         }
-        piece.append(InlineBlocks.attachmentString(InlineBlockAttachment(content: "", expanded: true), attributes: attributes))
+        let block = InlineBlockAttachment(content: "", expanded: true)
+        block.isNew = true
+        piece.append(InlineBlocks.attachmentString(block, attributes: attributes))
         let end = NSMaxRange(range)
         if end >= ns.length || ns.character(at: end) != 10 {
             piece.append(NSAttributedString(string: "\n", attributes: attributes))
@@ -259,6 +263,28 @@ final class EditorTextView: NSTextView {
         didChangeText()
         setSelectedRange(NSRange(location: range.location + piece.length, length: 0))
         typingAttributes = attributes
+        focus(block)
+    }
+
+    /// Puts the cursor inside a block's text area (once its view exists).
+    private func focus(_ block: InlineBlockAttachment, tries: Int = 8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self else { return }
+            self.layoutInlineBlocks()
+            if let host = self.blockHosts[block.blockID], let area = Self.firstTextView(in: host) {
+                self.window?.makeFirstResponder(area)
+            } else if tries > 1 {
+                self.focus(block, tries: tries - 1)
+            }
+        }
+    }
+
+    private static func firstTextView(in view: NSView) -> NSTextView? {
+        for sub in view.subviews {
+            if let text = sub as? NSTextView { return text }
+            if let found = firstTextView(in: sub) { return found }
+        }
+        return nil
     }
 
     /// Start with the cursor in the note, not in the sidebar list.
