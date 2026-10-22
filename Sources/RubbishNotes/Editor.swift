@@ -26,6 +26,130 @@ final class EditorTextView: NSTextView {
     var lineHeight: CGFloat = 26
     var ruleColor = NSColor.separatorColor
     let maxColumnWidth: CGFloat = 700
+    var blockStyle = InlineBlockStyle(text: .textColor, secondary: .secondaryLabelColor, accent: .controlAccentColor)
+    /// Called when a block's text, open state or presence changes.
+    var onBlocksChanged: (() -> Void)?
+    private var blockHosts: [UUID: InlineBlockHost] = [:]
+
+    /// Areas of the window (top-left origin) where floating panels and their
+    /// buttons sit: the pointer is an arrow there, never the text I-beam.
+    static var arrowZones: [CGRect] = []
+
+    private func inArrowZone(_ event: NSEvent) -> Bool {
+        guard let content = window?.contentView, !Self.arrowZones.isEmpty else { return false }
+        let p = content.convert(event.locationInWindow, from: nil)
+        let flipped = CGPoint(x: p.x, y: content.isFlipped ? p.y : content.bounds.height - p.y)
+        return Self.arrowZones.contains { $0.contains(flipped) }
+    }
+
+    /// Clicks on a block go to the block, not to the note's text underneath.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        for host in blockHosts.values where host.frame.contains(local) {
+            if let hit = host.hitTest(local) { return hit }
+        }
+        return super.hitTest(point)
+    }
+
+    private func overBlock(_ event: NSEvent) -> Bool {
+        let p = convert(event.locationInWindow, from: nil)
+        return blockHosts.values.contains { $0.frame.contains(p) }
+    }
+
+    // MARK: Note blocks
+
+    /// Lays each block's view over the spot its attachment holds in the text.
+    func layoutInlineBlocks() {
+        guard let layout = layoutManager, let container = textContainer, let storage = textStorage else { return }
+        var seen = Set<UUID>()
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard let block = value as? InlineBlockAttachment else { return }
+            seen.insert(block.blockID)
+            let glyphs = layout.glyphRange(forCharacterRange: NSRange(location: range.location, length: 1), actualCharacterRange: nil)
+            var rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            rect.origin.x += textContainerOrigin.x
+            rect.origin.y += textContainerOrigin.y
+            let view = blockView(for: block)
+            let host = blockHosts[block.blockID] ?? {
+                let made = InlineBlockHost(rootView: view)
+                addSubview(made)
+                blockHosts[block.blockID] = made
+                return made
+            }()
+            host.rootView = view
+            if host.frame != rect { host.frame = rect }
+        }
+        for (id, host) in blockHosts where !seen.contains(id) {
+            host.removeFromSuperview()
+            blockHosts[id] = nil
+        }
+    }
+
+    private func blockView(for block: InlineBlockAttachment) -> InlineBlockView {
+        InlineBlockView(
+            content: block.content,
+            expanded: block.expanded,
+            editable: isEditable,
+            style: blockStyle,
+            onEdit: { [weak self, weak block] text in
+                block?.content = text
+                self?.onBlocksChanged?()
+            },
+            onToggle: { [weak self, weak block] in
+                guard let self, let block else { return }
+                block.expanded.toggle()
+                self.relayout(block)
+                self.onBlocksChanged?()
+            },
+            onRemove: { [weak self, weak block] in
+                guard let self, let block, let index = self.index(of: block) else { return }
+                let range = NSRange(location: index, length: 1)
+                if self.shouldChangeText(in: range, replacementString: "") {
+                    self.textStorage?.replaceCharacters(in: range, with: "")
+                    self.didChangeText()
+                }
+            }
+        )
+    }
+
+    private func index(of block: InlineBlockAttachment) -> Int? {
+        guard let storage = textStorage else { return nil }
+        var found: Int?
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, stop in
+            if (value as? InlineBlockAttachment) === block { found = range.location; stop.pointee = true }
+        }
+        return found
+    }
+
+    private func relayout(_ block: InlineBlockAttachment) {
+        guard let index = index(of: block), let layout = layoutManager else { return }
+        let range = NSRange(location: index, length: 1)
+        layout.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+        layout.invalidateDisplay(forCharacterRange: range)
+        if let container = textContainer { layout.ensureLayout(for: container) }
+        layoutInlineBlocks()
+    }
+
+    /// The toolbar's (+): a new open block on its own line at the cursor.
+    func insertInlineBlock(attributes: [NSAttributedString.Key: Any]) {
+        guard isEditable, let storage = textStorage else { return }
+        let range = selectedRange()
+        let ns = storage.string as NSString
+        let piece = NSMutableAttributedString()
+        if range.location > 0, ns.character(at: range.location - 1) != 10 {
+            piece.append(NSAttributedString(string: "\n", attributes: attributes))
+        }
+        piece.append(InlineBlocks.attachmentString(InlineBlockAttachment(content: "", expanded: true), attributes: attributes))
+        let end = NSMaxRange(range)
+        if end >= ns.length || ns.character(at: end) != 10 {
+            piece.append(NSAttributedString(string: "\n", attributes: attributes))
+        }
+        guard shouldChangeText(in: range, replacementString: piece.string) else { return }
+        storage.replaceCharacters(in: range, with: piece)
+        didChangeText()
+        setSelectedRange(NSRange(location: range.location + piece.length, length: 0))
+        typingAttributes = attributes
+    }
 
     /// Start with the cursor in the note, not in the sidebar list.
     override func viewDidMoveToWindow() {
@@ -39,6 +163,7 @@ final class EditorTextView: NSTextView {
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
+        DispatchQueue.main.async { [weak self] in self?.layoutInlineBlocks() }
         let horizontal = max(36, floor((newSize.width - maxColumnWidth) / 2))
         if abs(textContainerInset.width - horizontal) > 0.5 {
             textContainerInset = NSSize(width: horizontal, height: Self.insetHeight)
@@ -78,13 +203,27 @@ final class EditorTextView: NSTextView {
         convert(event.locationInWindow, from: nil).y > visibleRect.maxY - Self.footerBand
     }
 
+    private func wantsArrow(_ event: NSEvent) -> Bool {
+        isOverFooter(event) || inArrowZone(event) || overBlock(event)
+    }
+
     override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
-        if isOverFooter(event) { NSCursor.arrow.set() }
+        if wantsArrow(event) { NSCursor.arrow.set() } else { super.mouseMoved(with: event) }
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        if isOverFooter(event) { NSCursor.arrow.set() } else { super.cursorUpdate(with: event) }
+        if wantsArrow(event) { NSCursor.arrow.set() } else { super.cursorUpdate(with: event) }
+    }
+
+    /// Esc closes the find bar when it is open.
+    override func cancelOperation(_ sender: Any?) {
+        if enclosingScrollView?.isFindBarVisible == true {
+            let item = NSMenuItem()
+            item.tag = NSTextFinder.Action.hideFindInterface.rawValue
+            performTextFinderAction(item)
+        } else {
+            super.cancelOperation(sender)
+        }
     }
 
     override func paste(_ sender: Any?) {
@@ -160,6 +299,8 @@ struct EditorView: NSViewRepresentable {
         scroll.borderType = .noBorder
 
         let textView = EditorTextView(frame: .zero)
+        // Blocks are attachment cells, which need the TextKit 1 layout manager.
+        textView.layoutManager?.delegate = context.coordinator
         textView.isRichText = false
         textView.importsGraphics = false
         textView.allowsUndo = true
@@ -184,6 +325,8 @@ struct EditorView: NSViewRepresentable {
         let coordinator = context.coordinator
         textView.onRichPaste = { [weak coordinator] in coordinator?.parent.onRichPaste() }
         textView.onImages = { [weak coordinator] files, data in coordinator?.parent.onImages(files, data) ?? false }
+        textView.onBlocksChanged = { [weak coordinator] in coordinator?.saveText() }
+        NoteStore.shared.findBarVisible = { [weak scroll] in scroll?.isFindBarVisible ?? false }
 
         scroll.documentView = textView
         scroll.findBarPosition = .aboveContent
@@ -215,21 +358,24 @@ struct EditorView: NSViewRepresentable {
             textView.lineHeight = lineHeight
             textView.ruled = ruled
             textView.ruleColor = theme.secondaryNS()
+            textView.blockStyle = InlineBlockStyle(text: theme.textNS(), secondary: theme.secondaryNS(),
+                                                   accent: theme.accentNS(fallback: accent))
             scroll.backgroundColor = theme.backgroundNS()
             c.applyAttributes()
             textView.needsDisplay = true
         }
         textView.isContinuousSpellCheckingEnabled = spellCheck
         textView.isEditable = editable
+        textView.layoutInlineBlocks()
         textView.insertionPointColor = theme.accentNS(fallback: accent)
         textView.selectedTextAttributes = [.backgroundColor: theme.selectionNS(fallback: accent)]
 
         if c.lastVersion != textVersion {
             c.lastVersion = textVersion
-            if textView.string != text {
+            if c.currentText() != text {
                 c.syncing = true
                 let caret = textView.selectedRange().location
-                textView.string = text
+                textView.textStorage?.setAttributedString(InlineBlocks.attributed(text, attributes: c.attributes))
                 c.applyAttributes()
                 let length = (textView.string as NSString).length
                 textView.setSelectedRange(NSRange(location: min(caret, length), length: 0))
@@ -256,7 +402,7 @@ struct EditorView: NSViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
         var parent: EditorView
         weak var textView: EditorTextView?
         var attributes: [NSAttributedString.Key: Any] = [:]
@@ -266,6 +412,23 @@ struct EditorView: NSViewRepresentable {
         var syncing = false
         var highlightKey = ""
         private var focusObserver: NSObjectProtocol?
+        private var insertObserver: NSObjectProtocol?
+
+        /// The note as saved: blocks written back as their markers.
+        func currentText() -> String {
+            guard let storage = textView?.textStorage else { return "" }
+            return InlineBlocks.serialize(storage)
+        }
+
+        func saveText() {
+            guard !syncing else { return }
+            NoteStore.shared.editorChanged(currentText())
+        }
+
+        func layoutManager(_ layoutManager: NSLayoutManager, didCompleteLayoutFor textContainer: NSTextContainer?, atEnd layoutFinishedFlag: Bool) {
+            guard layoutFinishedFlag else { return }
+            DispatchQueue.main.async { [weak self] in self?.textView?.layoutInlineBlocks() }
+        }
 
         /// Marks every match of the sidebar search and brings the first into view.
         func highlight(_ query: String, scroll: Bool) {
@@ -291,6 +454,7 @@ struct EditorView: NSViewRepresentable {
 
         deinit {
             if let focusObserver { NotificationCenter.default.removeObserver(focusObserver) }
+            if let insertObserver { NotificationCenter.default.removeObserver(insertObserver) }
         }
 
         func observeFocusRequests() {
@@ -298,19 +462,32 @@ struct EditorView: NSViewRepresentable {
                 guard let textView = self?.textView else { return }
                 textView.window?.makeFirstResponder(textView)
             }
+            insertObserver = NotificationCenter.default.addObserver(forName: .insertInlineBlock, object: nil, queue: .main) { [weak self] _ in
+                guard let self, let textView = self.textView else { return }
+                textView.window?.makeFirstResponder(textView)
+                textView.insertInlineBlock(attributes: self.attributes)
+            }
         }
 
         func applyAttributes() {
             guard let textView, let storage = textView.textStorage else { return }
             textView.typingAttributes = attributes
+            var blocks: [(NSRange, InlineBlockAttachment)] = []
+            storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+                if let block = value as? InlineBlockAttachment { blocks.append((range, block)) }
+            }
             storage.beginEditing()
             storage.setAttributes(attributes, range: NSRange(location: 0, length: storage.length))
+            for (range, block) in blocks {
+                storage.setAttributes(InlineBlocks.attachmentString(block, attributes: attributes)
+                    .attributes(at: 0, effectiveRange: nil), range: range)
+            }
             storage.endEditing()
         }
 
         func textDidChange(_ notification: Notification) {
-            guard !syncing, let textView else { return }
-            NoteStore.shared.editorChanged(textView.string)
+            guard !syncing, textView != nil else { return }
+            saveText()
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {

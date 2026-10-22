@@ -115,15 +115,9 @@ struct SidebarView: View {
     private var boxSwitcher: some View {
         VStack(spacing: 10) {
             if store.box == .trash && store.count(in: .trash) > 0 {
-                Button(role: .destructive) {
+                quietChip("Empty Trash", symbol: "trash.slash", help: "Delete every note in the Trash permanently") {
                     confirmEmpty.value = true
-                } label: {
-                    Label("Empty Trash", systemImage: "trash.slash")
-                        .frame(maxWidth: .infinity)
                 }
-                .compatGlassButtonStyle()
-                .controlSize(.large)
-                .help("Delete every note in the Trash permanently")
             }
             if store.box == .inbox && store.count(in: .inbox) > 0 {
                 clearInboxButton
@@ -157,19 +151,25 @@ struct SidebarView: View {
 
     /// Quiet on purpose: a small floating chip, and it always asks first.
     private var clearInboxButton: some View {
-        // Centred above the box switcher.
-        HStack {
-            Button { confirmClear.value = true } label: {
-                Label("Delete All", systemImage: "trash")
-                    .font(.caption)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .compatGlass(in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.tertiary)
-            .help("Move every note in the Inbox to the Trash (archived notes stay)")
+        quietChip("Delete All", symbol: "trash", help: "Move every note in the Inbox to the Trash (archived notes stay)") {
+            confirmClear.value = true
         }
+    }
+
+    /// The small centred glass chip used by Delete All and Empty Trash.
+    private func quietChip(_ title: LocalizedStringKey, symbol: String, help: LocalizedStringKey,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.caption)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .compatGlass(in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.tertiary)
+        .help(help)
+        .frame(maxWidth: .infinity)
     }
 
     private func row(_ note: NoteEntry) -> some View {
@@ -231,7 +231,7 @@ struct NoteRow: View {
                 store.togglePin(note.id)
             }
             statusMenu
-            ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
+            ExportMenu(noteID: note.id)
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
             Divider()
             Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
@@ -239,8 +239,8 @@ struct NoteRow: View {
         case .archive:
             renameItem
             Divider()
-            Button("Move to Inbox", systemImage: "tray.and.arrow.up") { store.restore(note.id) }
-            ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
+            Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
+            ExportMenu(noteID: note.id)
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
             Divider()
             Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }

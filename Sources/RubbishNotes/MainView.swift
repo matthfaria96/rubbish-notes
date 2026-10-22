@@ -116,6 +116,7 @@ struct MainView: View {
                 .overlay(alignment: .bottomLeading) {
                     if !focusMode, !isTrashed, let id = store.activeID {
                         BlocksButton(noteID: id, open: $blocksOpen.value)
+                            .footerZone("blocksButton")
                             .padding(.leading, 16)
                             .padding(.bottom, 14)
                     }
@@ -123,18 +124,34 @@ struct MainView: View {
                 .overlay(alignment: .bottomLeading) {
                     if blocksOpen.value, !focusMode, !isTrashed, let id = store.activeID {
                         BlocksPanel(noteID: id) { blocksOpen.value = false }
+                            .footerZone("blocksPanel")
                             .footerPanel(edge: .leading, isPresented: $blocksOpen.value)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if imagesHintOpen.value, !focusMode, !isTrashed {
                         ImagesHintPanel(onChoose: chooseImages) { imagesHintOpen.value = false }
+                            .footerZone("imagesPanel")
                             .footerPanel(edge: .trailing, isPresented: $imagesHintOpen.value)
                     }
                 }
                 // One corner panel at a time.
-                .onChange(of: blocksOpen.value) { if blocksOpen.value { imagesHintOpen.value = false } }
-                .onChange(of: imagesHintOpen.value) { if imagesHintOpen.value { blocksOpen.value = false } }
+                .onChange(of: blocksOpen.value) {
+                    if blocksOpen.value { imagesHintOpen.value = false }
+                    FooterPanelZones.shared.isOpen = blocksOpen.value || imagesHintOpen.value
+                }
+                .onChange(of: imagesHintOpen.value) {
+                    if imagesHintOpen.value { blocksOpen.value = false }
+                    FooterPanelZones.shared.isOpen = blocksOpen.value || imagesHintOpen.value
+                }
+                .onAppear {
+                    let blocks = blocksOpen, images = imagesHintOpen
+                    FooterPanelZones.shared.close = {
+                        blocks.value = false
+                        images.value = false
+                    }
+                    FooterPanelZones.shared.install()
+                }
                 .animation(.spring(duration: 0.28, bounce: 0.1), value: blocksOpen.value)
                 .animation(.spring(duration: 0.28, bounce: 0.1), value: imagesHintOpen.value)
                 .overlay(alignment: .bottomTrailing) { attachmentStrip }
@@ -182,6 +199,10 @@ struct MainView: View {
                 }
             }
             if !focusMode { detailToolbar }
+            if focusMode, #available(macOS 26, *) {
+                // Alone in the bar, the bolt still sits at the far right.
+                ToolbarSpacer(.flexible, placement: .primaryAction)
+            }
             ToolbarItem(placement: .primaryAction) { focusButton }
         }
         .animation(.smooth(duration: 0.25), value: toastState.value)
@@ -217,28 +238,11 @@ struct MainView: View {
         } else if let note = store.active {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
-                    TextFinder.perform(.showFindInterface)
+                    TextFinder.toggle()
                 } label: {
                     Label("Find", systemImage: "magnifyingglass")
                 }
                 .help("Find in Note (⌘F)")
-
-                if note.location == .inbox {
-                    Button {
-                        store.togglePin(note.id)
-                    } label: {
-                        Label(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin")
-                    }
-                    .help(L(note.pinned ? "Unpin Note" : "Pin Note"))
-                }
-
-                Button {
-                    note.location == .archive ? store.restore(note.id) : store.archive(note.id)
-                } label: {
-                    Label(L(note.location == .archive ? "Move to Inbox" : "Archive"),
-                          systemImage: note.location == .archive ? "tray.and.arrow.up" : "archivebox")
-                }
-                .help(L(note.location == .archive ? "Move to Inbox" : "Archive Note"))
 
                 Menu {
                     ForEach(NoteExportFormat.allCases) { format in
@@ -249,6 +253,28 @@ struct MainView: View {
                 }
                 .menuIndicator(.hidden)
                 .help(store.attachmentURLs(of: note.id).isEmpty ? L("Export Note") : L("Export Note with its images (.zip)"))
+
+                Menu {
+                    if note.location == .inbox {
+                        Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
+                            store.togglePin(note.id)
+                        }
+                    }
+                    if note.location == .archive {
+                        Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
+                    } else {
+                        Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
+                    }
+                    Divider()
+                    Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                        confirmTrash.value = note.id
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis")
+                }
+                .menuIndicator(.hidden)
+                .labelStyle(.iconOnly)
+                .help("More")
             }
 
             if #available(macOS 26, *) {
@@ -256,12 +282,12 @@ struct MainView: View {
             }
 
             ToolbarItem(placement: .primaryAction) {
-                Button(role: .destructive) {
-                    confirmTrash.value = note.id
+                Button {
+                    NotificationCenter.default.post(name: .insertInlineBlock, object: nil)
                 } label: {
-                    Label("Move to Trash", systemImage: "trash")
+                    Label("Insert Note Block", systemImage: "plus")
                 }
-                .help("Move to Trash")
+                .help("Insert Note Block")
             }
 
             if #available(macOS 26, *) {
@@ -360,6 +386,7 @@ struct MainView: View {
             if urls.isEmpty {
                 if !isTrashed {
                     ImagesHintButton(open: $imagesHintOpen.value)
+                        .footerZone("imagesButton")
                         .padding(.trailing, 16)
                         .padding(.bottom, 14)
                 }

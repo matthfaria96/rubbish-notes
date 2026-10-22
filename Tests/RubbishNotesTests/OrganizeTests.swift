@@ -170,3 +170,28 @@ struct PinnedExportTests {
         #expect(order == order.sorted())
     }
 }
+
+@Suite("Inline blocks")
+struct InlineBlockTests {
+    @Test func roundTripsThroughTheEditorAndExportsOpen() {
+        let text = "Intro\n⟦bloco recolhido⟧\nline 1\nline 2\n⟦/bloco⟧\nEnd ⟦bloco⟧\n\n⟦/bloco⟧"
+        #expect(InlineBlocks.segments(of: text) == [
+            .text("Intro\n"), .block(content: "line 1\nline 2", expanded: false),
+            .text("\nEnd "), .block(content: "", expanded: true),
+        ])
+        let attributed = InlineBlocks.attributed(text, attributes: [:])
+        #expect(attributed.length == "Intro\n".count + 1 + "\nEnd ".count + 1)
+        #expect(InlineBlocks.serialize(attributed) == text)
+        let readable = InlineBlocks.readable(text)
+        #expect(readable.contains("line 1\nline 2") && !readable.contains("⟦"))
+        #expect(!NoteExporter.plainText(title: "t", text: text, blocks: []).contains("⟦"))
+    }
+}
+
+@Suite("Inline blocks keep emoji")
+struct InlineBlockEmojiTests {
+    @Test func emojiSurvivesTheEditor() {
+        let text = "Oi 👋🏽 tchau\n⟦bloco⟧\n🎉\n⟦/bloco⟧\n"
+        #expect(InlineBlocks.serialize(InlineBlocks.attributed(text, attributes: [:])) == text)
+    }
+}

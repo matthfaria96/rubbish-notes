@@ -49,7 +49,7 @@ enum NoteExporter {
     }
 
     static func plainText(title: String, text: String, blocks: [String]) -> String {
-        var parts = [title, "", text.trimmingCharacters(in: .newlines)]
+        var parts = [title, "", InlineBlocks.readable(text).trimmingCharacters(in: .newlines)]
         for (index, block) in blocks.enumerated() {
             parts += ["", "", "— \(L("Block %ld", index + 1)) —", "", block]
         }
@@ -63,7 +63,7 @@ enum NoteExporter {
         let sub: [NSAttributedString.Key: Any] = [.font: NSFont.boldSystemFont(ofSize: 13), .foregroundColor: NSColor.darkGray]
         let mono: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.black]
         out.append(NSAttributedString(string: title + "\n\n", attributes: heading))
-        out.append(NSAttributedString(string: text.trimmingCharacters(in: .newlines) + "\n", attributes: body))
+        out.append(NSAttributedString(string: InlineBlocks.readable(text).trimmingCharacters(in: .newlines) + "\n", attributes: body))
         for (index, block) in blocks.enumerated() {
             out.append(NSAttributedString(string: "\n\(L("Block %ld", index + 1))\n", attributes: sub))
             out.append(NSAttributedString(string: block + "\n", attributes: mono))
@@ -103,5 +103,22 @@ enum NoteExporter {
             } catch { failure = error }
         }
         if let error = coordinatorError ?? failure { throw error }
+    }
+}
+
+import SwiftUI
+
+/// "Export Note" with its two formats; used in context menus and the toolbar.
+struct ExportMenu: View {
+    let noteID: UUID
+
+    var body: some View {
+        Menu {
+            ForEach(NoteExportFormat.allCases) { format in
+                Button(L("Export as %@…", format.title)) { NoteStore.shared.exportNote(noteID, as: format) }
+            }
+        } label: {
+            Label("Export Note", systemImage: "square.and.arrow.up")
+        }
     }
 }

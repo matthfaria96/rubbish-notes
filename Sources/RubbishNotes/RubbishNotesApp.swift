@@ -18,13 +18,15 @@ enum Prefs {
     /// Whole-window opacity, on by default at 90 %.
     static let windowTranslucent = "RubbishNotes.windowTranslucent"
     static let windowOpacity = "RubbishNotes.windowOpacity"
-    static let defaultWindowOpacity: Double = 0.9
+    static let defaultWindowOpacity: Double = 0.95
     static let didSeed = "RubbishNotes.didSeedStarters"
     static let defaultFontSize: Double = 15
 }
 
 extension Notification.Name {
     static let focusEditor = Notification.Name("RubbishNotes.focusEditor")
+    /// The toolbar's (+): put a note block at the cursor.
+    static let insertInlineBlock = Notification.Name("RubbishNotes.insertInlineBlock")
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -121,6 +123,12 @@ struct RubbishNotesApp: App {
 
 /// Drives the system find bar of the editor (NSTextFinder).
 enum TextFinder {
+    /// The magnifier: opens the find bar, or closes it when it is already open.
+    static func toggle() {
+        let visible = NoteStore.shared.findBarVisible?() ?? false
+        perform(visible ? .hideFindInterface : .showFindInterface)
+    }
+
     static func perform(_ action: NSTextFinder.Action) {
         NotificationCenter.default.post(name: .focusEditor, object: nil)
         DispatchQueue.main.async {
@@ -163,9 +171,9 @@ private struct NoteCommands: View {
                     }
                     Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
                 } else {
-                    Button("Move to Inbox", systemImage: "tray.and.arrow.up") { store.restore(note.id) }
+                    Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
                 }
-                ShareLink(item: store.url(for: note)) { Label("Share…", systemImage: "square.and.arrow.up") }
+                ExportMenu(noteID: note.id)
                 Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
                 Divider()
                 Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }

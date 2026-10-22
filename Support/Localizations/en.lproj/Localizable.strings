@@ -108,6 +108,11 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Copy Block";
 "Delete Block" = "Delete Block";
+"Unarchive" = "Unarchive";
+"Insert Note Block" = "Insert Note Block";
+"Note block" = "Note block";
+"Expand" = "Expand";
+"Remove Block" = "Remove Block";
 "Export as %@…" = "Export as %@…";
 "Export Note" = "Export Note";
 "Export Note with its images (.zip)" = "Export Note with its images (.zip)";

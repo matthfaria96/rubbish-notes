@@ -108,6 +108,11 @@
 "Block %ld" = "Bloque %ld";
 "Copy Block" = "Copiar bloque";
 "Delete Block" = "Eliminar bloque";
+"Unarchive" = "Desarchivar";
+"Insert Note Block" = "Insertar bloque de notas";
+"Note block" = "Bloque de notas";
+"Expand" = "Expandir";
+"Remove Block" = "Quitar bloque";
 "Export as %@…" = "Exportar como %@…";
 "Export Note" = "Exportar nota";
 "Export Note with its images (.zip)" = "Exportar la nota con sus imágenes (.zip)";

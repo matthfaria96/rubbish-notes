@@ -1,6 +1,6 @@
 # Rubbish Notes — handoff
 
-Read this first in a new session. Last updated 2026-10-20, version **0.7.0**.
+Read this first in a new session. Last updated 2026-10-20, version **0.8.0** (installed locally, not published).
 
 ## State
 
@@ -46,8 +46,9 @@ scripts/build-app.sh --install              # universal app into /Applications
 - Check visuals by capturing only the app's window
   (`screencapture -x -o -l <window id>`, owner name "Rubbish Notes"). Never
   capture the whole screen. Capture fails while the screen is locked.
-- Synthetic CGEvent clicks don't reach apps on the host. Use
-  `osascript -e 'tell application "System Events" to click at {x, y}'`.
+- Real mouse clicks on the host: a JXA script posting CGEvents through
+  `osascript -l JavaScript` works. "System Events click at" goes through
+  accessibility and can hit the wrong view. System Events keystrokes drop digits.
 - Screenshots for the site must never show the owner's real notes. Run a copy
   of the app with another bundle id (own sandbox) and fill it with sample notes.
 - The owner writes in Portuguese. Answer in Portuguese.
@@ -68,4 +69,5 @@ scripts/build-app.sh --install              # universal app into /Applications
 | `EditorTheme.swift` | 13 themes, each a different colour family. A theme colours the whole window, the lightbox and Settings. |
 | `SettingsView.swift`, `AboutView.swift` | Tabs General / Editor / Themes / About. Window section: glass sidebar (on), see-through window (on, 90 %, slider 50 to 100 %). |
 | `Editor.swift` | NSTextView; the cursor is an arrow over the bottom 64 pt (footer); image-only paste goes to attachments. |
+| `InlineBlocks.swift` | Note blocks inside the text (toolbar +). Saved in the .txt as `⟦bloco⟧`/`⟦bloco recolhido⟧` … `⟦/bloco⟧`; in the editor an attachment cell reserves room and `EditorTextView.layoutInlineBlocks()` lays an `InlineBlockHost` over it. Serialize by attribute runs (per-character broke emoji). Exports show them open. |
 | `Compat.swift` | Glass helpers with macOS 15 fallbacks. |

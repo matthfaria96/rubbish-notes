@@ -82,6 +82,19 @@ extension NoteStore {
     }
 }
 
+// MARK: Export
+
+extension NoteStore {
+    /// Exports any note (open or not) with its blocks and images.
+    func exportNote(_ id: UUID, as format: NoteExportFormat) {
+        guard let note = notes.first(where: { $0.id == id }) else { return }
+        if id == activeID { flushNow() }
+        let body = id == activeID ? text : ((try? String(contentsOf: url(for: note), encoding: .utf8)) ?? "")
+        NoteExporter.export(title: note.title, text: body, blocks: blocks(of: id),
+                            images: attachmentURLs(of: id), as: format)
+    }
+}
+
 // MARK: Blocks
 
 extension NoteStore {

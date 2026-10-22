@@ -92,6 +92,8 @@ final class NoteStore: ObservableObject {
     @Published var undoNotice: String?
     /// The window's undo manager, so Edit › Undo also covers archiving and trashing.
     weak var undoManager: UndoManager?
+    /// Set by the editor: whether its find bar is showing.
+    var findBarVisible: (() -> Bool)?
     /// Full text of every note, for sidebar search.
     private var contents: [UUID: String] = [:]
 
@@ -752,7 +754,7 @@ final class NoteStore: ObservableObject {
     }
 
     static func preview(of text: String) -> String {
-        let line = text.split(whereSeparator: \.isNewline)
+        let line = InlineBlocks.readable(text).split(whereSeparator: \.isNewline)
             .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
         return String(line.trimmingCharacters(in: .whitespaces).prefix(90))
     }
