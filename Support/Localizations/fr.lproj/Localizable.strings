@@ -115,6 +115,11 @@
 "Write or paste here…" = "Écrivez ou collez ici…";
 "Confirm" = "Confirmer";
 "Give this note block a name." = "Donnez un nom à ce bloc de notes.";
+"Notes list" = "Liste des notes";
+"Sidebar (vertical)" = "Barre latérale (verticale)";
+"Tabs (horizontal)" = "Onglets en haut (horizontal)";
+"All Notes" = "Toutes les notes";
+"No Results" = "Aucun résultat";
 "Cancel" = "Annuler";
 "Unarchive" = "Désarchiver";
 "Insert Note Block" = "Insérer un bloc de notes";

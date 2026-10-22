@@ -62,6 +62,7 @@ scripts/build-app.sh --install              # universal app into /Applications
 | `NoteStore+Organize.swift` | Status (open/in progress/done), drag order, blocks API, image attachments (`Attachments/<note id>/`), `ThumbnailCache`. |
 | `MainView.swift` | Window: editor, footer (blocks button left, word count centred, images pile or hint right), corner panels, lightbox, toolbar (`TitleField` + buttons), window opacity and theme colours (`WindowConfigurator`). |
 | `SidebarView.swift` | Fixed search field, list (context menu starts with "Change Name", renaming in place), centred "Delete All", box switcher. No double-click or pencil button: they caused stalls. |
+| `NoteStrip.swift` | Tabs layout (Settings › General › Window › Notes list): strip above the note with box menu, scrolling tabs (pinned first, drag one onto another to reorder, same context menu via `NoteContextMenu`), search, "All Notes" popover holding the full `SidebarView`, new note. |
 | `TitleField.swift` | Click-to-rename title in the toolbar (pencil icon); `RenameField` is an AppKit field, because SwiftUI focus doesn't reach into the toolbar. |
 | `AttachmentViews.swift` | Image pile, `ImagesHintButton`/`ImagesHintPanel`, `ImageLightbox` (themed, filmstrip, "…" menu with Save All / Delete All). Never uses Quick Look (the owner forbade the native previewer). |
 | `BlocksView.swift` | Blocks panel (200 to 520 pt tall, grows with its blocks); typing is buffered so no key is lost. |

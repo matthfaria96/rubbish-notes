@@ -11,6 +11,8 @@ struct MainView: View {
     @AppStorage(Prefs.ruled) private var ruled = false
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
     @AppStorage(Prefs.windowTranslucent) private var translucent = true
+    @AppStorage(Prefs.notesLayout) private var layoutRaw = NotesLayout.sidebar.rawValue
+    private var usesTabs: Bool { layoutRaw == NotesLayout.tabs.rawValue }
     @AppStorage(Prefs.windowOpacity) private var opacity = Prefs.defaultWindowOpacity
     @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
@@ -48,10 +50,9 @@ struct MainView: View {
         } detail: {
             detail
         }
-        .toolbar(removing: focusMode ? .sidebarToggle : nil)
-        .onChange(of: focusMode, initial: true) {
-            withAnimation(.smooth(duration: 0.3)) { columns.value = focusMode ? .detailOnly : .all }
-        }
+        .toolbar(removing: focusMode || usesTabs ? .sidebarToggle : nil)
+        .onChange(of: focusMode, initial: true) { applyColumns() }
+        .onChange(of: layoutRaw) { applyColumns() }
         // The theme colors the whole window, not just the page.
         .tint(Color(nsColor: theme.accentNS(fallback: iconStyle.accentNS)))
         .themedForeground(theme)
@@ -76,6 +77,13 @@ struct MainView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 NotificationCenter.default.post(name: .focusEditor, object: nil)
             }
+        }
+    }
+
+    /// The sidebar shows only in the vertical layout, outside focus mode.
+    private func applyColumns() {
+        withAnimation(.smooth(duration: 0.3)) {
+            columns.value = focusMode || usesTabs ? .detailOnly : .all
         }
     }
 
@@ -155,6 +163,12 @@ struct MainView: View {
                 .animation(.spring(duration: 0.28, bounce: 0.1), value: blocksOpen.value)
                 .animation(.spring(duration: 0.28, bounce: 0.1), value: imagesHintOpen.value)
                 .overlay(alignment: .bottomTrailing) { attachmentStrip }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if usesTabs, !focusMode {
+                NoteStrip(query: $searchState.value)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { detailWidth.value = $0 }

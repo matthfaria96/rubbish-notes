@@ -15,6 +15,8 @@ enum Prefs {
     static let sidebarStatus = "RubbishNotes.sidebarStatus"
     /// See-through glass behind the sidebar (on by default).
     static let sidebarGlass = "RubbishNotes.sidebarGlass"
+    /// "sidebar" (vertical list) or "tabs" (horizontal strip above the note).
+    static let notesLayout = "RubbishNotes.notesLayout"
     /// Whole-window opacity, on by default at 90 %.
     static let windowTranslucent = "RubbishNotes.windowTranslucent"
     static let windowOpacity = "RubbishNotes.windowOpacity"

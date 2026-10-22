@@ -46,6 +46,7 @@ private struct GeneralSettings: View {
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
     @AppStorage(Prefs.sidebarGlass) private var sidebarGlass = true
+    @AppStorage(Prefs.notesLayout) private var layoutRaw = NotesLayout.sidebar.rawValue
     @AppStorage(Prefs.windowTranslucent) private var translucent = true
     @AppStorage(Prefs.windowOpacity) private var opacity = Prefs.defaultWindowOpacity
     @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
@@ -80,7 +81,13 @@ private struct GeneralSettings: View {
                 Toggle("Keep window on top of other apps", isOn: $floatOnTop)
             }
             Section("Window") {
+                Picker("Notes list", selection: $layoutRaw) {
+                    ForEach(NotesLayout.allCases) { layout in
+                        Label(layout.title, systemImage: layout.symbol).tag(layout.rawValue)
+                    }
+                }
                 Toggle("Glass sidebar", isOn: $sidebarGlass)
+                    .disabled(layoutRaw == NotesLayout.tabs.rawValue)
                 Toggle("See-through window", isOn: $translucent)
                 if translucent {
                     LabeledContent("Opacity") {

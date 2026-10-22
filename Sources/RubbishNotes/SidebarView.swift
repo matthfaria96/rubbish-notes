@@ -8,6 +8,9 @@ struct SidebarView: View {
     @StateObject private var confirmEmpty = ViewState(false)
     @StateObject private var confirmClear = ViewState(false)
     @AppStorage(Prefs.focusMode) private var focusMode = false
+    /// In the tabs layout this list lives in a panel; the bar's buttons belong to the strip.
+    @AppStorage(Prefs.notesLayout) private var layoutRaw = NotesLayout.sidebar.rawValue
+    private var hidesBarButtons: Bool { focusMode || layoutRaw == NotesLayout.tabs.rawValue }
     @AppStorage(Prefs.sidebarGlass) private var sidebarGlass = true
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
 
@@ -60,9 +63,9 @@ struct SidebarView: View {
             Text(count == 1 ? L("1 note goes to the Trash. Archived notes stay.")
                             : L("%ld notes go to the Trash. Archived notes stay.", count))
         }
-        .toolbar(removing: focusMode ? .sidebarToggle : nil)
+        .toolbar(removing: hidesBarButtons ? .sidebarToggle : nil)
         .toolbar {
-            if !focusMode {
+            if !hidesBarButtons {
                 ToolbarItem(placement: .primaryAction) { newNoteButton }
             }
         }
@@ -216,43 +219,11 @@ struct NoteRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 3)
         .contentShape(Rectangle())
-        .contextMenu { contextMenu.labelStyle(.titleAndIcon) }
+        .contextMenu {
+            NoteContextMenu(note: note) { renamingID = note.id }.labelStyle(.titleAndIcon)
+        }
         .swipeActions(edge: .leading) { leadingSwipe }
         .swipeActions(edge: .trailing) { trailingSwipe }
-    }
-
-    @ViewBuilder
-    private var contextMenu: some View {
-        switch note.location {
-        case .inbox:
-            renameItem
-            Divider()
-            Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
-                store.togglePin(note.id)
-            }
-            statusMenu
-            ExportMenu(noteID: note.id)
-            Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
-            Divider()
-            Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
-            Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
-        case .archive:
-            renameItem
-            Divider()
-            Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
-            ExportMenu(noteID: note.id)
-            Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
-            Divider()
-            Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
-        case .trash:
-            Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }
-            Divider()
-            Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
-        }
-    }
-
-    private var renameItem: some View {
-        Button("Change Name", systemImage: "pencil") { renamingID = note.id }
     }
 
     private func commitRename(_ text: String) {
@@ -260,14 +231,6 @@ struct NoteRow: View {
         renamingID = nil
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !clean.isEmpty, clean != note.title { store.rename(note.id, to: clean) }
-    }
-
-    private var statusMenu: some View {
-        Menu(L("Status"), systemImage: "circle.fill") {
-            ForEach(NoteStatus.allCases) { status in
-                Button(status.title) { store.setStatus(note.id, status) }
-            }
-        }
     }
 
     @ViewBuilder
@@ -312,7 +275,7 @@ struct NoteRow: View {
 
 /// Inbox / Archive / Trash. Drawn by hand (not a system segmented control)
 /// so it takes the theme's text and accent colors.
-private struct BoxSwitcher: View {
+struct BoxSwitcher: View {
     @Binding var selection: NoteBox
     @Namespace private var pill
 
@@ -344,5 +307,53 @@ private struct BoxSwitcher: View {
         .padding(3)
         .compatGlass(in: Capsule())
         .animation(.smooth(duration: 0.22), value: selection)
+    }
+}
+
+/// Everything a note offers on a right click, shared by the sidebar and the tabs.
+struct NoteContextMenu: View {
+    @EnvironmentObject private var store: NoteStore
+    let note: NoteEntry
+    let onRename: () -> Void
+
+    var body: some View {
+        switch note.location {
+        case .inbox:
+            renameItem
+            Divider()
+            Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
+                store.togglePin(note.id)
+            }
+            statusMenu
+            ExportMenu(noteID: note.id)
+            Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
+            Divider()
+            Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
+            Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
+        case .archive:
+            renameItem
+            Divider()
+            Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
+            ExportMenu(noteID: note.id)
+            Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
+            Divider()
+            Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
+        case .trash:
+            Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }
+            Divider()
+            Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
+        }
+    }
+
+    private var renameItem: some View {
+        Button("Change Name", systemImage: "pencil", action: onRename)
+    }
+
+    private var statusMenu: some View {
+        Menu(L("Status"), systemImage: "circle.fill") {
+            ForEach(NoteStatus.allCases) { status in
+                Button(status.title) { store.setStatus(note.id, status) }
+            }
+        }
     }
 }

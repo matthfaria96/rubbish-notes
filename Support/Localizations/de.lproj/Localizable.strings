@@ -115,6 +115,11 @@
 "Write or paste here…" = "Hier schreiben oder einsetzen …";
 "Confirm" = "Bestätigen";
 "Give this note block a name." = "Gib diesem Notizblock einen Namen.";
+"Notes list" = "Notizliste";
+"Sidebar (vertical)" = "Seitenleiste (vertikal)";
+"Tabs (horizontal)" = "Tabs oben (horizontal)";
+"All Notes" = "Alle Notizen";
+"No Results" = "Keine Ergebnisse";
 "Cancel" = "Abbrechen";
 "Unarchive" = "Aus dem Archiv holen";
 "Insert Note Block" = "Notizblock einfügen";
