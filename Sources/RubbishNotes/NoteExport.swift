@@ -10,6 +10,32 @@ enum NoteExportFormat: String, CaseIterable, Identifiable {
     var symbol: String { self == .pdf ? "doc.richtext" : "doc.plaintext" }
 }
 
+enum BlockExportFormat: String, CaseIterable, Identifiable {
+    case txt, pdf, md
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .txt: L("Plain Text")
+        case .pdf: "PDF"
+        case .md: "Markdown"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .txt: "doc.plaintext"
+        case .pdf: "doc.richtext"
+        case .md: "number"
+        }
+    }
+    var contentType: UTType {
+        switch self {
+        case .txt: .plainText
+        case .pdf: .pdf
+        case .md: UTType(filenameExtension: "md") ?? .plainText
+        }
+    }
+}
+
 enum NoteExporter {
     /// Asks where to save and writes the export. Returns false on failure.
     @discardableResult
@@ -49,6 +75,32 @@ enum NoteExporter {
         }
     }
 
+    /// One note block on its own, as plain text, PDF or Markdown.
+    static func exportBlock(_ content: String, as format: BlockExportFormat) {
+        let base = L("Note block")
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(base).\(format.rawValue)"
+        panel.allowedContentTypes = [format.contentType]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        do {
+            switch format {
+            case .txt, .md:
+                try (content + "\n").write(to: dest, atomically: true, encoding: .utf8)
+            case .pdf:
+                let work = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).pdf")
+                defer { try? FileManager.default.removeItem(at: work) }
+                let body = NSMutableAttributedString(string: base + "\n\n", attributes: [.font: NSFont.boldSystemFont(ofSize: 16), .foregroundColor: NSColor.black])
+                body.append(NSAttributedString(string: content + "\n", attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.black]))
+                try writePDF(body, to: work)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.copyItem(at: work, to: dest)
+            }
+        } catch {
+            NSSound.beep()
+        }
+    }
+
     static func plainText(title: String, text: String, blocks: [String]) -> String {
         var parts = [title, "", InlineBlocks.readable(text).trimmingCharacters(in: .newlines)]
         for (index, block) in blocks.enumerated() {
@@ -73,7 +125,7 @@ enum NoteExporter {
     }
 
     /// A4 pages through the print system, saved straight to a file.
-    private static func writePDF(_ content: NSAttributedString, to url: URL) throws {
+    static func writePDF(_ content: NSAttributedString, to url: URL) throws {
         let info = NSPrintInfo(dictionary: [.jobSavingURL: url])
         info.jobDisposition = .save
         info.paperSize = NSSize(width: 595, height: 842)

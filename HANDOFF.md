@@ -49,6 +49,7 @@ scripts/build-app.sh --install              # universal app into /Applications
 - Real mouse clicks on the host: a JXA script posting CGEvents through
   `osascript -l JavaScript` works. "System Events click at" goes through
   accessibility and can hit the wrong view. System Events keystrokes drop digits.
+- Before driving a test copy, quit the owner's app (`osascript -e 'quit app id "local.rubbishnotes.app"'`): both have the owner name "Rubbish Notes", so captures and clicks can land on their real notes. Reopen it after.
 - Screenshots for the site must never show the owner's real notes. Run a copy
   of the app with another bundle id (own sandbox) and fill it with sample notes.
 - The owner writes in Portuguese. Answer in Portuguese.

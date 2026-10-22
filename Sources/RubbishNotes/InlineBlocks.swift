@@ -223,16 +223,7 @@ struct InlineBlockView: View {
                 }
                 .help("Collapse")
                 Spacer()
-                Button(action: copy) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                }
-                .help("Copy Block")
-                if editable {
-                    Button(action: onRemove) { Image(systemName: "trash") }
-                        .help("Delete Block")
-                }
-                Button(action: exportMarkdown) { Image(systemName: "arrow.down.doc") }
-                    .help("Export Block as Markdown…")
+                blockMenu
             }
             .buttonStyle(.plain)
             .foregroundStyle(secondary)
@@ -248,17 +239,39 @@ struct InlineBlockView: View {
         .onChange(of: content) { if content != draft { draft = nil } }
     }
 
-    private func exportMarkdown() {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(L("Note block")).md"
-        panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try ((draft ?? content) + "\n").write(to: url, atomically: true, encoding: .utf8)
-        } catch {
-            NSSound.beep()
+    /// Copy and Export above, Delete apart below them.
+    private var blockMenu: some View {
+        Menu {
+            Button { copy() } label: {
+                Label { Text("Copy Block") } icon: { Image(systemName: "doc.on.doc") }.labelStyle(.titleAndIcon)
+            }
+            Menu {
+                ForEach(BlockExportFormat.allCases) { format in
+                    Button { NoteExporter.exportBlock(draft ?? content, as: format) } label: {
+                        Label { Text(format.title) } icon: { Image(systemName: format.symbol) }.labelStyle(.titleAndIcon)
+                    }
+                }
+            } label: {
+                Label { Text("Export") } icon: { Image(systemName: "square.and.arrow.up") }.labelStyle(.titleAndIcon)
+            }
+            if editable {
+                Divider()
+                Button(role: .destructive, action: onRemove) {
+                    Label { Text("Delete Block") } icon: { Image(systemName: "trash") }.labelStyle(.titleAndIcon)
+                }
+            }
+        } label: {
+            Image(systemName: copied ? "checkmark" : "ellipsis")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(secondary)
+                .frame(width: 24, height: 20)
+                .contentShape(Rectangle())
         }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More")
     }
 
     private func copy() {

@@ -105,7 +105,10 @@ final class EditorTextView: NSTextView {
                 guard let self, let block else { return }
                 self.confirmRemoval(of: block)
             },
-            onDragChanged: { _ in },
+            onDragChanged: { [weak self, weak block] translation in
+                guard let self, let block else { return }
+                self.showDropLine(for: block, translation: translation)
+            },
             onDragEnded: { [weak self, weak block] translation in
                 guard let self, let block else { return }
                 self.move(block, by: translation)
@@ -137,22 +140,64 @@ final class EditorTextView: NSTextView {
         }
     }
 
-    /// Dropped after a drag: the block moves to the start of the line under it.
-    private func move(_ block: InlineBlockAttachment, by translation: CGSize) {
+    private let dropLine: NSView = {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.cornerRadius = 1.5
+        view.isHidden = true
+        return view
+    }()
+
+    /// Where a dragged block would land: the character it goes before (nil when
+    /// that is where it already is), and the y of that line's top.
+    private func dropTarget(for block: InlineBlockAttachment, translation: CGSize) -> (index: Int, y: CGFloat)? {
         guard let from = index(of: block), let storage = textStorage, let layout = layoutManager,
-              let container = textContainer, let host = blockHosts[block.blockID], abs(translation.height) > 4 else { return }
+              let container = textContainer, let host = blockHosts[block.blockID] else { return nil }
         // The block lands on the line under the handle, which sits near its top.
         let handle = host.frame.minY + min(16, host.frame.height / 2)
         let drop = NSPoint(x: 4, y: handle + translation.height - textContainerOrigin.y)
-        let glyph = layout.glyphIndex(for: drop, in: container)
-        var target = layout.characterIndexForGlyph(at: glyph)
         let ns = storage.string as NSString
-        target = ns.lineRange(for: NSRange(location: min(target, ns.length), length: 0)).location
-        // Dropping below the last line puts it at the very end.
-        if drop.y > layout.usedRect(for: container).maxY { target = ns.length }
+        var target: Int
+        if drop.y > layout.usedRect(for: container).maxY {
+            target = ns.length
+        } else {
+            let glyph = layout.glyphIndex(for: drop, in: container)
+            let char = layout.characterIndexForGlyph(at: glyph)
+            target = ns.lineRange(for: NSRange(location: min(char, ns.length), length: 0)).location
+        }
+        let ownLine = from + 1 < ns.length && ns.character(at: from + 1) == 10
+        if target >= from && target <= from + (ownLine ? 2 : 1) { return nil }
+        let y: CGFloat
+        if target >= ns.length {
+            y = layout.usedRect(for: container).maxY
+        } else {
+            let glyph = layout.glyphIndexForCharacter(at: target)
+            y = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minY
+        }
+        return (target, y + textContainerOrigin.y)
+    }
+
+    /// A line in the theme's accent where the block would go, as in the sidebar.
+    private func showDropLine(for block: InlineBlockAttachment, translation: CGSize) {
+        if dropLine.superview == nil { addSubview(dropLine) }
+        guard abs(translation.height) > 4, let target = dropTarget(for: block, translation: translation) else {
+            dropLine.isHidden = true
+            return
+        }
+        let width = min(maxColumnWidth, bounds.width - textContainerOrigin.x * 2)
+        dropLine.layer?.backgroundColor = blockStyle.accent.cgColor
+        dropLine.frame = NSRect(x: textContainerOrigin.x - 2, y: target.y - 1.5, width: width + 4, height: 3)
+        dropLine.isHidden = false
+    }
+
+    /// Dropped after a drag: the block moves to the start of the line under it.
+    private func move(_ block: InlineBlockAttachment, by translation: CGSize) {
+        dropLine.isHidden = true
+        guard abs(translation.height) > 4, let from = index(of: block), let storage = textStorage,
+              let target = dropTarget(for: block, translation: translation)?.index else { return }
+        let ns = storage.string as NSString
         let ownLine = from + 1 < ns.length && ns.character(at: from + 1) == 10
         let removal = NSRange(location: from, length: ownLine ? 2 : 1)
-        if target >= removal.location && target <= NSMaxRange(removal) { return }
         let piece = storage.attributedSubstring(from: NSRange(location: from, length: 1)).mutableCopy() as! NSMutableAttributedString
         let lineAttrs = typingAttributes
         if target == ns.length, ns.length > 0, ns.character(at: ns.length - 1) != 10 {
