@@ -4,8 +4,9 @@ Plain-text notes app for macOS (SwiftUI + AppKit, Swift Package, no Xcode projec
 This file is the state of the project, so a new session doesn't have to read the
 whole codebase. Keep it current when something here changes.
 
-Last updated 2026-10-22. Version in `Support/Info.plist`: **0.8.0**, installed on
-the owner's Mac but **not published**. The latest public release is **v0.7.0**.
+Last updated 2026-10-22. Version **1.0.0**, published as the only GitHub
+release (v1.0.0) and installed on the owner's Mac. The owner considers the
+project done; only fixes from here.
 
 ## Where things stand
 

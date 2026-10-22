@@ -2,6 +2,18 @@
 
 A plain-text notes app for macOS. Every note is a real `.txt` file, saved a moment after you stop typing. Paste anything and only the words arrive.
 
+![A note with an open and a folded note block, the sidebar with status dots, and the footer with blocks, status and images](docs/screenshots/note.png)
+
+- **Note blocks** inside the text for longer passages: name them, fold them to one line, drag them between lines, copy or export them (plain text, PDF, Markdown).
+- **Images and blocks in the footer**, kept apart from your writing. Images open in the app's own lightbox.
+- **Status** per note (open, in progress, done), pinning, Archive and Trash, drag to reorder, and export as PDF or text (zipped with the images).
+- **Sidebar or tabs:** a vertical list, or tabs across the top with an All Notes panel for when there are many.
+- **Themes that colour the whole window**, a glass sidebar and adjustable window opacity. Six languages.
+
+| Tabs layout | Themes |
+|---|---|
+| ![Tabs across the top of the window](docs/screenshots/tabs.png) | ![The Themes tab in Settings](docs/screenshots/themes.png) |
+
 ## Build
 
 Runs on macOS 15 Sequoia and newer (Liquid Glass on macOS 26+). Building needs the Xcode Command Line Tools (full Xcode is not needed).
