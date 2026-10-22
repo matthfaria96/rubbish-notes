@@ -527,7 +527,8 @@ struct EditorView: NSViewRepresentable {
             textView.ruled = ruled
             textView.ruleColor = theme.secondaryNS()
             textView.blockStyle = InlineBlockStyle(text: theme.textNS(), secondary: theme.secondaryNS(),
-                                                   accent: theme.accentNS(fallback: accent))
+                                                   accent: theme.accentNS(fallback: accent),
+                                                   background: theme.backgroundNS())
             scroll.backgroundColor = theme.backgroundNS()
             c.applyAttributes()
             textView.needsDisplay = true

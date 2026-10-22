@@ -159,6 +159,8 @@ struct InlineBlockStyle {
     var text: NSColor
     var secondary: NSColor
     var accent: NSColor
+    /// The page color, so a block being dragged hides the lines it passes over.
+    var background: NSColor = .textBackgroundColor
 }
 
 /// The block on screen. Collapsed: a small chip. Expanded: a box with three
@@ -187,11 +189,20 @@ struct InlineBlockView: View {
     private var secondary: Color { Color(nsColor: style.secondary) }
 
     var body: some View {
+        let dragging = dragOffset != .zero
         Group {
             if expanded { box } else { chip }
         }
+        .background {
+            if dragging {
+                RoundedRectangle(cornerRadius: expanded ? 12 : 15, style: .continuous)
+                    .fill(Color(nsColor: style.background))
+            }
+        }
+        .scaleEffect(dragging ? 1.02 : 1)
         .offset(y: dragOffset.height)
-        .shadow(color: .black.opacity(dragOffset == .zero ? 0 : 0.25), radius: 10, y: 4)
+        .shadow(color: .black.opacity(dragging ? 0.3 : 0), radius: 14, y: 6)
+        .animation(.easeOut(duration: 0.12), value: dragging)
     }
 
     /// Grab here to move the block up or down between the lines.
@@ -413,11 +424,17 @@ struct BlockGrip: NSViewRepresentable {
         view.onEnd = onEnd
     }
 
+    /// Measures the drag in the note's own coordinates, so scrolling while
+    /// dragging (wheel, trackpad or the automatic scroll near an edge) keeps the
+    /// block and its drop line under the pointer.
     final class GripView: NSView {
         let imageView = NSImageView()
         var onChange: ((CGSize) -> Void)?
         var onEnd: ((CGSize) -> Void)?
         private var start: NSPoint?
+        private var lastWindowPoint: NSPoint?
+        private var scrollTimer: Timer?
+        private var boundsObserver: NSObjectProtocol?
 
         override init(frame: NSRect) {
             super.init(frame: frame)
@@ -434,24 +451,78 @@ struct BlockGrip: NSViewRepresentable {
         override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-        private func translation(_ event: NSEvent) -> CGSize {
-            guard let start else { return .zero }
-            let p = event.locationInWindow
-            // Window coordinates grow upward; the block's offset grows downward.
-            return CGSize(width: p.x - start.x, height: start.y - p.y)
+        /// The note's text view this handle sits in.
+        private var editor: NSTextView? {
+            var view = superview
+            while let current = view {
+                if let text = current as? EditorTextView { return text }
+                view = current.superview
+            }
+            return nil
+        }
+
+        private func documentPoint(_ windowPoint: NSPoint) -> NSPoint? {
+            editor?.convert(windowPoint, from: nil)
+        }
+
+        private func report() {
+            guard let start, let window = lastWindowPoint, let now = documentPoint(window) else { return }
+            // The text view is flipped: y grows downward, like the block's offset.
+            onChange?(CGSize(width: now.x - start.x, height: now.y - start.y))
         }
 
         override func mouseDown(with event: NSEvent) {
-            start = event.locationInWindow
+            lastWindowPoint = event.locationInWindow
+            start = documentPoint(event.locationInWindow)
             NSCursor.closedHand.push()
+            if let clip = editor?.enclosingScrollView?.contentView {
+                clip.postsBoundsChangedNotifications = true
+                boundsObserver = NotificationCenter.default.addObserver(
+                    forName: NSView.boundsDidChangeNotification, object: clip, queue: .main
+                ) { [weak self] _ in self?.report() }
+            }
+            // Keeps scrolling while the pointer rests near the top or bottom edge.
+            scrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+                self?.autoscrollNearEdge()
+            }
         }
 
-        override func mouseDragged(with event: NSEvent) { onChange?(translation(event)) }
+        override func mouseDragged(with event: NSEvent) {
+            lastWindowPoint = event.locationInWindow
+            report()
+        }
 
         override func mouseUp(with event: NSEvent) {
+            lastWindowPoint = event.locationInWindow
+            scrollTimer?.invalidate()
+            scrollTimer = nil
+            if let boundsObserver { NotificationCenter.default.removeObserver(boundsObserver) }
+            boundsObserver = nil
             NSCursor.pop()
-            onEnd?(translation(event))
+            if let start, let now = documentPoint(event.locationInWindow) {
+                onEnd?(CGSize(width: now.x - start.x, height: now.y - start.y))
+            }
             start = nil
+        }
+
+        /// Faster the closer the pointer is to (or past) the edge.
+        private func autoscrollNearEdge() {
+            guard let window = lastWindowPoint, let scroll = editor?.enclosingScrollView,
+                  let doc = scroll.documentView else { return }
+            let clip = scroll.contentView
+            let inClip = clip.convert(window, from: nil)
+            let band: CGFloat = 48
+            let visible = clip.bounds
+            var step: CGFloat = 0
+            if inClip.y < visible.minY + band { step = -(visible.minY + band - inClip.y) }
+            if inClip.y > visible.maxY - band { step = inClip.y - (visible.maxY - band) }
+            guard step != 0 else { return }
+            let speed = max(-40, min(40, step / 2))
+            let maxY = max(0, doc.frame.height - visible.height)
+            let y = max(0, min(maxY, visible.origin.y + speed))
+            guard y != visible.origin.y else { return }
+            clip.scroll(to: NSPoint(x: visible.origin.x, y: y))
+            scroll.reflectScrolledClipView(clip)
         }
     }
 }
