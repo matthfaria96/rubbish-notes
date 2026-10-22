@@ -76,8 +76,8 @@ enum NoteExporter {
     }
 
     /// One note block on its own, as plain text, PDF or Markdown.
-    static func exportBlock(_ content: String, as format: BlockExportFormat) {
-        let base = L("Note block")
+    static func exportBlock(_ content: String, title: String? = nil, as format: BlockExportFormat) {
+        let base = title.map(NoteStore.sanitize).flatMap { $0.isEmpty ? nil : $0 } ?? L("Note block")
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "\(base).\(format.rawValue)"
         panel.allowedContentTypes = [format.contentType]

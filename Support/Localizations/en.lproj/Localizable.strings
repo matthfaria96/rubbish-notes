@@ -113,6 +113,8 @@
 "Export Block as Markdown…" = "Export Block as Markdown…";
 "Drag to move the block" = "Drag to move the block";
 "Write or paste here…" = "Write or paste here…";
+"Confirm" = "Confirm";
+"Give this note block a name." = "Give this note block a name.";
 "Cancel" = "Cancel";
 "Unarchive" = "Unarchive";
 "Insert Note Block" = "Insert Note Block";

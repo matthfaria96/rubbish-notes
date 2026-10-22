@@ -90,6 +90,7 @@ final class EditorTextView: NSTextView {
         return InlineBlockView(
             content: block.content,
             expanded: block.expanded,
+            title: block.title,
             editable: isEditable,
             style: blockStyle,
             onEdit: { [weak self, weak block] text in
@@ -106,6 +107,10 @@ final class EditorTextView: NSTextView {
                 guard let self, let block else { return }
                 self.confirmRemoval(of: block)
             },
+            onRename: { [weak self, weak block] in
+                guard let self, let block else { return }
+                self.askName(for: block)
+            },
             onDragChanged: { [weak self, weak block] translation in
                 guard let self, let block else { return }
                 self.showDropLine(for: block, translation: translation)
@@ -116,6 +121,33 @@ final class EditorTextView: NSTextView {
             },
             startsFocused: block.isNew
         )
+    }
+
+    /// A small dialog to name the block; Confirm saves, Cancel leaves it.
+    private func askName(for block: InlineBlockAttachment) {
+        let alert = NSAlert()
+        alert.messageText = L("Change Name")
+        alert.informativeText = L("Give this note block a name.")
+        let field = NSTextField(string: block.title ?? L("Note block"))
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        field.placeholderString = L("Note block")
+        alert.accessoryView = field
+        alert.addButton(withTitle: L("Confirm"))
+        alert.addButton(withTitle: L("Cancel"))
+        alert.window.initialFirstResponder = field
+        let apply = { [weak self, weak block] in
+            guard let self, let block else { return }
+            let name = InlineBlocks.clean(field.stringValue)
+            block.title = name.isEmpty || name == L("Note block") ? nil : name
+            self.layoutInlineBlocks()
+            self.onBlocksChanged?()
+        }
+        if let window {
+            alert.beginSheetModal(for: window) { if $0 == .alertFirstButtonReturn { apply() } }
+            DispatchQueue.main.async { field.selectText(nil) }
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            apply()
+        }
     }
 
     /// Asks first; the block and the line it sat on go away together.

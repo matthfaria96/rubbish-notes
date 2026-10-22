@@ -121,6 +121,8 @@ T = [
 ("Export Block as Markdown…", "Export Block as Markdown…", "Exportar Bloco como Markdown…", "Exportar bloque como Markdown…", "Exporter le bloc en Markdown…", "Block als Markdown exportieren …", "Esporta blocco come Markdown…"),
 ("Drag to move the block", "Drag to move the block", "Arraste para mover o bloco", "Arrastra para mover el bloque", "Faites glisser pour déplacer le bloc", "Ziehen, um den Block zu verschieben", "Trascina per spostare il blocco"),
 ("Write or paste here…", "Write or paste here…", "Escreva ou cole aqui…", "Escribe o pega aquí…", "Écrivez ou collez ici…", "Hier schreiben oder einsetzen …", "Scrivi o incolla qui…"),
+("Confirm", "Confirm", "Confirmar", "Confirmar", "Confirmer", "Bestätigen", "Conferma"),
+("Give this note block a name.", "Give this note block a name.", "Dê um nome a este bloco de anotação.", "Ponle un nombre a este bloque de notas.", "Donnez un nom à ce bloc de notes.", "Gib diesem Notizblock einen Namen.", "Dai un nome a questo blocco di note."),
 ("Cancel", "Cancel", "Cancelar", "Cancelar", "Annuler", "Abbrechen", "Annulla"),
 ("Unarchive", "Unarchive", "Desarquivar", "Desarchivar", "Désarchiver", "Aus dem Archiv holen", "Togli dall’archivio"),
 ("Insert Note Block", "Insert Note Block", "Inserir Bloco de Anotação", "Insertar bloque de notas", "Insérer un bloc de notes", "Notizblock einfügen", "Inserisci blocco di note"),

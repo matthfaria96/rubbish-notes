@@ -195,3 +195,17 @@ struct InlineBlockEmojiTests {
         #expect(InlineBlocks.serialize(InlineBlocks.attributed(text, attributes: [:])) == text)
     }
 }
+
+@Suite("Named inline blocks")
+struct NamedInlineBlockTests {
+    @Test func titleRoundTripsAndOldBlocksStillRead() {
+        let text = "a\n⟦bloco: Endereço⟧\nRua 1\n⟦/bloco⟧\n⟦bloco recolhido: Hotel⟧\nx\n⟦/bloco⟧\n⟦bloco⟧\nsem nome\n⟦/bloco⟧"
+        #expect(InlineBlocks.segments(of: text) == [
+            .text("a\n"), .block(content: "Rua 1", expanded: true, title: "Endereço"), .text("\n"),
+            .block(content: "x", expanded: false, title: "Hotel"), .text("\n"),
+            .block(content: "sem nome", expanded: true, title: nil),
+        ])
+        #expect(InlineBlocks.serialize(InlineBlocks.attributed(text, attributes: [:])) == text)
+        #expect(InlineBlocks.readable(text).contains("Endereço:\nRua 1"))
+    }
+}

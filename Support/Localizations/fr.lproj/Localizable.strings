@@ -113,6 +113,8 @@
 "Export Block as Markdown…" = "Exporter le bloc en Markdown…";
 "Drag to move the block" = "Faites glisser pour déplacer le bloc";
 "Write or paste here…" = "Écrivez ou collez ici…";
+"Confirm" = "Confirmer";
+"Give this note block a name." = "Donnez un nom à ce bloc de notes.";
 "Cancel" = "Annuler";
 "Unarchive" = "Désarchiver";
 "Insert Note Block" = "Insérer un bloc de notes";

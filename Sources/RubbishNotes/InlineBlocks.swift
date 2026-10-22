@@ -16,11 +16,12 @@ enum InlineBlocks {
 
     enum Segment: Equatable {
         case text(String)
-        case block(content: String, expanded: Bool)
+        /// `title` is nil while the block keeps its default name.
+        case block(content: String, expanded: Bool, title: String? = nil)
     }
 
     private static let pattern = try! NSRegularExpression(
-        pattern: "⟦bloco( recolhido)?⟧\\n([\\s\\S]*?)\\n⟦/bloco⟧")
+        pattern: "⟦bloco( recolhido)?(?:: ([^⟧\\n]*))?⟧\\n([\\s\\S]*?)\\n⟦/bloco⟧")
 
     static func segments(of text: String) -> [Segment] {
         let ns = text as NSString
@@ -30,16 +31,26 @@ enum InlineBlocks {
             if match.range.location > cursor {
                 out.append(.text(ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))))
             }
-            out.append(.block(content: ns.substring(with: match.range(at: 2)),
-                              expanded: match.range(at: 1).location == NSNotFound))
+            let named = match.range(at: 2).location == NSNotFound ? nil : ns.substring(with: match.range(at: 2))
+            out.append(.block(content: ns.substring(with: match.range(at: 3)),
+                              expanded: match.range(at: 1).location == NSNotFound,
+                              title: named.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }))
             cursor = NSMaxRange(match.range)
         }
         if cursor < ns.length { out.append(.text(ns.substring(from: cursor))) }
         return out
     }
 
-    static func serialize(_ content: String, expanded: Bool) -> String {
-        "\(expanded ? openMarker : collapsedMarker)\n\(content)\n\(closeMarker)"
+    static func serialize(_ content: String, expanded: Bool, title: String? = nil) -> String {
+        let state = expanded ? "⟦bloco" : "⟦bloco recolhido"
+        let name = title.map { ": " + clean($0) } ?? ""
+        return "\(state)\(name)⟧\n\(content)\n\(closeMarker)"
+    }
+
+    /// A name fits on the marker's line: no line breaks, no closing bracket.
+    static func clean(_ title: String) -> String {
+        title.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "⟧", with: "")
+            .trimmingCharacters(in: .whitespaces)
     }
 
     /// The text as a person reads it: every block shown open, under its label.
@@ -48,7 +59,7 @@ enum InlineBlocks {
         segments(of: text).map { segment in
             switch segment {
             case .text(let string): return string
-            case .block(let content, _): return "\(L("Note block")):\n\(content)"
+            case .block(let content, _, let title): return "\(title ?? L("Note block")):\n\(content)"
             }
         }.joined()
     }
@@ -60,8 +71,10 @@ enum InlineBlocks {
             switch segment {
             case .text(let string):
                 out.append(NSAttributedString(string: string, attributes: attributes))
-            case .block(let content, let expanded):
-                out.append(attachmentString(InlineBlockAttachment(content: content, expanded: expanded), attributes: attributes))
+            case .block(let content, let expanded, let title):
+                let block = InlineBlockAttachment(content: content, expanded: expanded)
+                block.title = title
+                out.append(attachmentString(block, attributes: attributes))
             }
         }
         return out
@@ -90,7 +103,7 @@ enum InlineBlocks {
         // Whole runs at a time, so emoji and other surrogate pairs stay intact.
         storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: ns.length)) { value, range, _ in
             if let block = value as? InlineBlockAttachment {
-                out += serialize(block.content, expanded: block.expanded)
+                out += serialize(block.content, expanded: block.expanded, title: block.title)
             } else {
                 out += ns.substring(with: range).replacingOccurrences(of: "\u{FFFC}", with: "")
             }
@@ -103,6 +116,8 @@ final class InlineBlockAttachment: NSTextAttachment {
     let blockID = UUID()
     var content: String
     var expanded: Bool
+    /// nil shows the default "Note block".
+    var title: String?
 
     init(content: String, expanded: Bool) {
         self.content = content
@@ -151,11 +166,13 @@ struct InlineBlockStyle {
 struct InlineBlockView: View {
     let content: String
     let expanded: Bool
+    var title: String?
     let editable: Bool
     let style: InlineBlockStyle
     let onEdit: (String) -> Void
     let onToggle: () -> Void
     let onRemove: () -> Void
+    var onRename: () -> Void = {}
     /// While dragging: how far the block has moved; on release, where it was let go.
     let onDragChanged: (CGSize) -> Void
     let onDragEnded: (CGSize) -> Void
@@ -204,8 +221,7 @@ struct InlineBlockView: View {
     private func header(showMenu: Bool) -> some View {
         HStack(spacing: 8) {
             grip
-            Image(systemName: "text.alignleft").font(.system(size: 11, weight: .medium))
-            Text("Note block")
+            Text(title ?? L("Note block"))
                 .font(.callout.weight(.medium))
                 .lineLimit(1)
                 .fixedSize()
@@ -278,7 +294,7 @@ struct InlineBlockView: View {
             }
             Menu {
                 ForEach(BlockExportFormat.allCases) { format in
-                    Button { NoteExporter.exportBlock(draft ?? content, as: format) } label: {
+                    Button { NoteExporter.exportBlock(draft ?? content, title: title, as: format) } label: {
                         Label { Text(format.title) } icon: { Image(systemName: format.symbol) }.labelStyle(.titleAndIcon)
                     }
                 }
@@ -286,6 +302,9 @@ struct InlineBlockView: View {
                 Label { Text("Export") } icon: { Image(systemName: "square.and.arrow.up") }.labelStyle(.titleAndIcon)
             }
             if editable {
+                Button(action: onRename) {
+                    Label { Text("Change Name") } icon: { Image(systemName: "pencil") }.labelStyle(.titleAndIcon)
+                }
                 Divider()
                 Button(role: .destructive, action: onRemove) {
                     Label { Text("Delete Block") } icon: { Image(systemName: "trash") }.labelStyle(.titleAndIcon)

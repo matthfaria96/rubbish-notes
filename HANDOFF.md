@@ -70,5 +70,5 @@ scripts/build-app.sh --install              # universal app into /Applications
 | `EditorTheme.swift` | 13 themes, each a different colour family. A theme colours the whole window, the lightbox and Settings. |
 | `SettingsView.swift`, `AboutView.swift` | Tabs General / Editor / Themes / About. Window section: glass sidebar (on), see-through window (on, 90 %, slider 50 to 100 %). |
 | `Editor.swift` | NSTextView; the cursor is an arrow over the bottom 64 pt (footer); image-only paste goes to attachments. |
-| `InlineBlocks.swift` | Note blocks inside the text (toolbar +). Saved in the .txt as `⟦bloco⟧`/`⟦bloco recolhido⟧` … `⟦/bloco⟧`; in the editor an attachment cell reserves room and `EditorTextView.layoutInlineBlocks()` lays an `InlineBlockHost` over it. Serialize by attribute runs (per-character broke emoji). Exports show them open. |
+| `InlineBlocks.swift` | Note blocks inside the text (toolbar +). Saved in the .txt as `⟦bloco⟧` or `⟦bloco recolhido⟧`, optionally with a name (`⟦bloco: Name⟧`), … `⟦/bloco⟧`; in the editor an attachment cell reserves room and `EditorTextView.layoutInlineBlocks()` lays an `InlineBlockHost` over it. Serialize by attribute runs (per-character broke emoji). Exports show them open. |
 | `Compat.swift` | Glass helpers with macOS 15 fallbacks. |
