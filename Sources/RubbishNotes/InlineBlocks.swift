@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import AppKit
 import SwiftUI
 
@@ -152,17 +153,42 @@ struct InlineBlockView: View {
     let onEdit: (String) -> Void
     let onToggle: () -> Void
     let onRemove: () -> Void
+    /// While dragging: how far the block has moved; on release, where it was let go.
+    let onDragChanged: (CGSize) -> Void
+    let onDragEnded: (CGSize) -> Void
     @State private var draft: String?
     @State private var copied = false
+    @State private var dragOffset: CGSize = .zero
 
     private var text: Color { Color(nsColor: style.text) }
     private var secondary: Color { Color(nsColor: style.secondary) }
 
     var body: some View {
-        if expanded { box } else { chip }
+        Group {
+            if expanded { box } else { chip }
+        }
+        .offset(y: dragOffset.height)
+        .shadow(color: .black.opacity(dragOffset == .zero ? 0 : 0.25), radius: 10, y: 4)
+    }
+
+    /// Grab here to move the block up or down between the lines.
+    private var grip: some View {
+        BlockGrip(color: style.secondary) { translation in
+            dragOffset = translation
+            onDragChanged(translation)
+        } onEnd: { translation in
+            dragOffset = .zero
+            onDragEnded(translation)
+        }
+        .frame(width: 18, height: 22)
+        .help("Drag to move the block")
+        .opacity(editable ? 1 : 0)
+        .allowsHitTesting(editable)
     }
 
     private var chip: some View {
+        HStack(spacing: 2) {
+        grip
         Button(action: onToggle) {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
@@ -171,19 +197,23 @@ struct InlineBlockView: View {
                 Spacer(minLength: 0)
             }
             .foregroundStyle(secondary)
-            .padding(.horizontal, 10)
+            .padding(.trailing, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(text.opacity(0.06), in: Capsule())
-            .overlay(Capsule().strokeBorder(text.opacity(0.14)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .help("Expand")
+        }
+        .padding(.leading, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(text.opacity(0.06), in: Capsule())
+        .overlay(Capsule().strokeBorder(text.opacity(0.14)))
     }
 
     private var box: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                grip
                 Button(action: onToggle) {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
@@ -198,9 +228,11 @@ struct InlineBlockView: View {
                 }
                 .help("Copy Block")
                 if editable {
-                    Button(action: onRemove) { Image(systemName: "xmark") }
-                        .help("Remove Block")
+                    Button(action: onRemove) { Image(systemName: "trash") }
+                        .help("Delete Block")
                 }
+                Button(action: exportMarkdown) { Image(systemName: "arrow.down.doc") }
+                    .help("Export Block as Markdown…")
             }
             .buttonStyle(.plain)
             .foregroundStyle(secondary)
@@ -214,6 +246,19 @@ struct InlineBlockView: View {
         .background(text.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(text.opacity(0.14)))
         .onChange(of: content) { if content != draft { draft = nil } }
+    }
+
+    private func exportMarkdown() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(L("Note block")).md"
+        panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ((draft ?? content) + "\n").write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            NSSound.beep()
+        }
     }
 
     private func copy() {
@@ -277,6 +322,69 @@ struct BlockTextArea: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? NSTextView else { return }
             parent.onChange(view.string)
+        }
+    }
+}
+
+/// The block's drag handle. AppKit handles the mouse itself, so the note's
+/// text view underneath never starts a text selection instead.
+struct BlockGrip: NSViewRepresentable {
+    let color: NSColor
+    let onChange: (CGSize) -> Void
+    let onEnd: (CGSize) -> Void
+
+    func makeNSView(context: Context) -> GripView {
+        let view = GripView()
+        view.imageView.image = NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
+        return view
+    }
+
+    func updateNSView(_ view: GripView, context: Context) {
+        view.imageView.contentTintColor = color
+        view.onChange = onChange
+        view.onEnd = onEnd
+    }
+
+    final class GripView: NSView {
+        let imageView = NSImageView()
+        var onChange: ((CGSize) -> Void)?
+        var onEnd: ((CGSize) -> Void)?
+        private var start: NSPoint?
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            imageView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(imageView)
+            NSLayoutConstraint.activate([
+                imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
+                imageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ])
+        }
+
+        required init?(coder: NSCoder) { fatalError("not coded") }
+
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        private func translation(_ event: NSEvent) -> CGSize {
+            guard let start else { return .zero }
+            let p = event.locationInWindow
+            // Window coordinates grow upward; the block's offset grows downward.
+            return CGSize(width: p.x - start.x, height: start.y - p.y)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            start = event.locationInWindow
+            NSCursor.closedHand.push()
+        }
+
+        override func mouseDragged(with event: NSEvent) { onChange?(translation(event)) }
+
+        override func mouseUp(with event: NSEvent) {
+            NSCursor.pop()
+            onEnd?(translation(event))
+            start = nil
         }
     }
 }

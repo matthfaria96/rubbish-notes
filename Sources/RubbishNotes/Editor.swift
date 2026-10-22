@@ -102,14 +102,79 @@ final class EditorTextView: NSTextView {
                 self.onBlocksChanged?()
             },
             onRemove: { [weak self, weak block] in
-                guard let self, let block, let index = self.index(of: block) else { return }
-                let range = NSRange(location: index, length: 1)
-                if self.shouldChangeText(in: range, replacementString: "") {
-                    self.textStorage?.replaceCharacters(in: range, with: "")
-                    self.didChangeText()
-                }
+                guard let self, let block else { return }
+                self.confirmRemoval(of: block)
+            },
+            onDragChanged: { _ in },
+            onDragEnded: { [weak self, weak block] translation in
+                guard let self, let block else { return }
+                self.move(block, by: translation)
             }
         )
+    }
+
+    /// Asks first; the block and the line it sat on go away together.
+    private func confirmRemoval(of block: InlineBlockAttachment) {
+        let alert = NSAlert()
+        alert.messageText = L("Delete this note block?")
+        alert.informativeText = L("Its text will be removed from the note.")
+        alert.addButton(withTitle: L("Delete")).hasDestructiveAction = true
+        alert.addButton(withTitle: L("Cancel"))
+        let remove = { [weak self, weak block] in
+            guard let self, let block, let index = self.index(of: block), let storage = self.textStorage else { return }
+            let ns = storage.string as NSString
+            let ownLine = index + 1 < ns.length && ns.character(at: index + 1) == 10
+            let range = NSRange(location: index, length: ownLine ? 2 : 1)
+            if self.shouldChangeText(in: range, replacementString: "") {
+                storage.replaceCharacters(in: range, with: "")
+                self.didChangeText()
+            }
+        }
+        if let window {
+            alert.beginSheetModal(for: window) { if $0 == .alertFirstButtonReturn { remove() } }
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            remove()
+        }
+    }
+
+    /// Dropped after a drag: the block moves to the start of the line under it.
+    private func move(_ block: InlineBlockAttachment, by translation: CGSize) {
+        guard let from = index(of: block), let storage = textStorage, let layout = layoutManager,
+              let container = textContainer, let host = blockHosts[block.blockID], abs(translation.height) > 4 else { return }
+        // The block lands on the line under the handle, which sits near its top.
+        let handle = host.frame.minY + min(16, host.frame.height / 2)
+        let drop = NSPoint(x: 4, y: handle + translation.height - textContainerOrigin.y)
+        let glyph = layout.glyphIndex(for: drop, in: container)
+        var target = layout.characterIndexForGlyph(at: glyph)
+        let ns = storage.string as NSString
+        target = ns.lineRange(for: NSRange(location: min(target, ns.length), length: 0)).location
+        // Dropping below the last line puts it at the very end.
+        if drop.y > layout.usedRect(for: container).maxY { target = ns.length }
+        let ownLine = from + 1 < ns.length && ns.character(at: from + 1) == 10
+        let removal = NSRange(location: from, length: ownLine ? 2 : 1)
+        if target >= removal.location && target <= NSMaxRange(removal) { return }
+        let piece = storage.attributedSubstring(from: NSRange(location: from, length: 1)).mutableCopy() as! NSMutableAttributedString
+        let lineAttrs = typingAttributes
+        if target == ns.length, ns.length > 0, ns.character(at: ns.length - 1) != 10 {
+            piece.insert(NSAttributedString(string: "\n", attributes: lineAttrs), at: 0)
+        }
+        piece.append(NSAttributedString(string: "\n", attributes: lineAttrs))
+        breakUndoCoalescing()
+        // Insert first when the target is above, so the removal range stays valid.
+        if target < removal.location {
+            replace(NSRange(location: target, length: 0), with: piece)
+            replace(NSRange(location: removal.location + piece.length, length: removal.length), with: NSAttributedString())
+        } else {
+            replace(NSRange(location: target, length: 0), with: piece)
+            replace(removal, with: NSAttributedString())
+        }
+        layoutInlineBlocks()
+    }
+
+    private func replace(_ range: NSRange, with string: NSAttributedString) {
+        guard let storage = textStorage, shouldChangeText(in: range, replacementString: string.string) else { return }
+        storage.replaceCharacters(in: range, with: string)
+        didChangeText()
     }
 
     private func index(of block: InlineBlockAttachment) -> Int? {

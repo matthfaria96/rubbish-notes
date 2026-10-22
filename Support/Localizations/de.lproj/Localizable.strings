@@ -108,6 +108,11 @@
 "Block %ld" = "Block %ld";
 "Copy Block" = "Block kopieren";
 "Delete Block" = "Block löschen";
+"Delete this note block?" = "Diesen Notizblock löschen?";
+"Its text will be removed from the note." = "Sein Text wird aus der Notiz entfernt.";
+"Export Block as Markdown…" = "Block als Markdown exportieren …";
+"Drag to move the block" = "Ziehen, um den Block zu verschieben";
+"Cancel" = "Abbrechen";
 "Unarchive" = "Aus dem Archiv holen";
 "Insert Note Block" = "Notizblock einfügen";
 "Note block" = "Notizblock";

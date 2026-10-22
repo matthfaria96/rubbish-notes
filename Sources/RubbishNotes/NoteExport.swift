@@ -7,6 +7,7 @@ enum NoteExportFormat: String, CaseIterable, Identifiable {
     case pdf, txt
     var id: String { rawValue }
     var title: String { self == .pdf ? "PDF" : L("Plain Text") }
+    var symbol: String { self == .pdf ? "doc.richtext" : "doc.plaintext" }
 }
 
 enum NoteExporter {
@@ -115,8 +116,11 @@ struct ExportMenu: View {
     var body: some View {
         Menu {
             ForEach(NoteExportFormat.allCases) { format in
-                Button(L("Export as %@…", format.title)) { NoteStore.shared.exportNote(noteID, as: format) }
+                Button(L("Export as %@…", format.title), systemImage: format.symbol) {
+                    NoteStore.shared.exportNote(noteID, as: format)
+                }
             }
+            .labelStyle(.titleAndIcon)
         } label: {
             Label("Export Note", systemImage: "square.and.arrow.up")
         }

@@ -246,7 +246,7 @@ struct MainView: View {
 
                 Menu {
                     ForEach(NoteExportFormat.allCases) { format in
-                        Button(L("Export as %@…", format.title)) { export(note, as: format) }
+                        menuItem(L("Export as %@…", format.title), format.symbol) { export(note, as: format) }
                     }
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
@@ -256,24 +256,21 @@ struct MainView: View {
 
                 Menu {
                     if note.location == .inbox {
-                        Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
+                        menuItem(L(note.pinned ? "Unpin" : "Pin"), note.pinned ? "pin.slash" : "pin") {
                             store.togglePin(note.id)
                         }
                     }
                     if note.location == .archive {
-                        Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
+                        menuItem(L("Unarchive"), "tray") { store.restore(note.id) }
                     } else {
-                        Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
+                        menuItem(L("Archive"), "archivebox") { store.archive(note.id) }
                     }
                     Divider()
-                    Button("Move to Trash", systemImage: "trash", role: .destructive) {
-                        confirmTrash.value = note.id
-                    }
+                    menuItem(L("Move to Trash"), "trash", role: .destructive) { confirmTrash.value = note.id }
                 } label: {
-                    Label("More", systemImage: "ellipsis")
+                    Label("More", systemImage: "ellipsis").labelStyle(.iconOnly)
                 }
                 .menuIndicator(.hidden)
-                .labelStyle(.iconOnly)
                 .help("More")
             }
 
@@ -293,6 +290,15 @@ struct MainView: View {
             if #available(macOS 26, *) {
                 ToolbarSpacer(.fixed, placement: .primaryAction)
             }
+        }
+    }
+
+    /// A toolbar menu item that keeps its icon (the bar strips icons otherwise).
+    private func menuItem(_ title: String, _ symbol: String, role: ButtonRole? = nil,
+                          action: @escaping () -> Void) -> some View {
+        Button(role: role, action: action) {
+            Label { Text(title) } icon: { Image(systemName: symbol) }
+                .labelStyle(.titleAndIcon)
         }
     }
 
