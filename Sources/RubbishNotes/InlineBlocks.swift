@@ -300,6 +300,11 @@ struct InlineBlockView: View {
     /// Copy and Export above, Delete apart below them.
     private var blockMenu: some View {
         Menu {
+            if editable {
+                Button(action: onRename) {
+                    Label { Text("Change Name") } icon: { Image(systemName: "pencil") }.labelStyle(.titleAndIcon)
+                }
+            }
             Button { copy() } label: {
                 Label { Text("Copy Block") } icon: { Image(systemName: "doc.on.doc") }.labelStyle(.titleAndIcon)
             }
@@ -313,9 +318,6 @@ struct InlineBlockView: View {
                 Label { Text("Export") } icon: { Image(systemName: "square.and.arrow.up") }.labelStyle(.titleAndIcon)
             }
             if editable {
-                Button(action: onRename) {
-                    Label { Text("Change Name") } icon: { Image(systemName: "pencil") }.labelStyle(.titleAndIcon)
-                }
                 Divider()
                 Button(role: .destructive, action: onRemove) {
                     Label { Text("Delete Block") } icon: { Image(systemName: "trash") }.labelStyle(.titleAndIcon)

@@ -4,6 +4,9 @@ import SwiftUI
 struct SidebarView: View {
     @EnvironmentObject private var store: NoteStore
     @Binding var query: String
+    /// Set in the tabs layout's panel: the box being looked at there, which
+    /// changes only the panel. The window follows when a note is picked.
+    var browsing: Binding<NoteBox>?
     @StateObject private var renaming = ViewState<UUID?>(nil)
     @StateObject private var confirmEmpty = ViewState(false)
     @StateObject private var confirmClear = ViewState(false)
@@ -15,8 +18,8 @@ struct SidebarView: View {
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
 
     var body: some View {
-        let pinned = store.pinnedNotes.filter { store.matches($0, query: query) }
-        let others = store.listNotes.filter { store.matches($0, query: query) }
+        let pinned = store.pinnedNotes(in: box).filter { store.matches($0, query: query) }
+        let others = store.listNotes(in: box).filter { store.matches($0, query: query) }
         // The list ends above the box switcher instead of scrolling under it.
         VStack(spacing: 0) {
         List(selection: selection) {
@@ -44,9 +47,11 @@ struct SidebarView: View {
         }
         .background { SidebarBackdrop(theme: EditorTheme.named(themeID), glass: sidebarGlass) }
         // Stays put at the top while only the notes scroll beneath it.
-        .safeAreaInset(edge: .top, spacing: 0) { searchField }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            searchField.padding(.top, browsing == nil ? 0 : 12)
+        }
         .onDeleteCommand {
-            guard let id = store.activeID, store.box != .trash else { return }
+            guard browsing == nil, let id = store.activeID, store.box != .trash else { return }
             store.trash(id)
         }
         .confirmationDialog("Empty the Trash?", isPresented: $confirmEmpty.value) {
@@ -81,11 +86,14 @@ struct SidebarView: View {
     }
 
     /// Dragging sets the order of the whole box, so not while searching or in the Trash.
-    private var canReorder: Bool { query.isEmpty && store.box != .trash }
+    private var canReorder: Bool { query.isEmpty && box != .trash }
+
+    /// The box this list shows.
+    private var box: NoteBox { browsing?.wrappedValue ?? store.box }
 
     private var sectionTitle: String {
         if !query.isEmpty { return L("Results") }
-        switch store.box {
+        switch box {
         case .inbox: return L("Notes")
         case .archive: return L("Archived")
         case .trash: return L("Deleted")
@@ -93,16 +101,23 @@ struct SidebarView: View {
     }
 
     private var selection: Binding<UUID?> {
-        Binding(get: { store.activeID }, set: { store.select($0) })
+        Binding(
+            get: { store.active?.location == box ? store.activeID : nil },
+            set: { id in
+                if browsing != nil, let id { store.openNote(id, in: box) } else { store.select(id) }
+            }
+        )
     }
 
     private var boxBinding: Binding<NoteBox> {
-        Binding(get: { store.box }, set: { store.show($0) })
+        Binding(get: { box }, set: { newBox in
+            if let browsing { browsing.wrappedValue = newBox } else { store.show(newBox) }
+        })
     }
 
     @ViewBuilder
     private var emptyBox: some View {
-        switch store.box {
+        switch box {
         case .inbox:
             ContentUnavailableView("No Notes", systemImage: "tray", description: Text("Notes you write appear here."))
         case .archive:
@@ -117,12 +132,12 @@ struct SidebarView: View {
     /// Inbox, Archive and Trash at the foot of the sidebar.
     private var boxSwitcher: some View {
         VStack(spacing: 10) {
-            if store.box == .trash && store.count(in: .trash) > 0 {
+            if box == .trash && store.count(in: .trash) > 0 {
                 quietChip("Empty Trash", symbol: "trash.slash", help: "Delete every note in the Trash permanently") {
                     confirmEmpty.value = true
                 }
             }
-            if store.box == .inbox && store.count(in: .inbox) > 0 {
+            if box == .inbox && store.count(in: .inbox) > 0 {
                 clearInboxButton
             }
             BoxSwitcher(selection: boxBinding)

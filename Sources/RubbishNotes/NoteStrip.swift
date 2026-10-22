@@ -19,6 +19,8 @@ struct NoteStrip: View {
     @StateObject private var renaming = ViewState<UUID?>(nil)
     @StateObject private var showAll = ViewState(false)
     @StateObject private var dropTarget = ViewState<UUID?>(nil)
+    /// The box shown in the All Notes panel; switching it doesn't move the window.
+    @StateObject private var browsing = ViewState(NoteBox.inbox)
 
     var body: some View {
         let pinned = store.pinnedNotes.filter { store.matches($0, query: query) }
@@ -27,7 +29,6 @@ struct NoteStrip: View {
             boxMenu
             Divider().frame(height: 18)
             tabs(pinned: pinned, others: others)
-            searchField
             allNotesButton
             Button {
                 store.newNote()
@@ -143,28 +144,12 @@ struct NoteStrip: View {
         return true
     }
 
-    private var searchField: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search", text: $query)
-                .textFieldStyle(.plain)
-            if !query.isEmpty {
-                Button { query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .help("Clear")
-            }
-        }
-        .font(.callout)
-        .padding(.horizontal, 9)
-        .frame(width: 170, height: 28)
-        .background(Color.secondary.opacity(0.12), in: Capsule())
-    }
-
     /// The full list in a panel: everything the sidebar offers.
     private var allNotesButton: some View {
-        Button { showAll.value.toggle() } label: {
+        Button {
+            if !showAll.value { browsing.value = store.box }
+            showAll.value.toggle()
+        } label: {
             HStack(spacing: 4) {
                 Image(systemName: "list.bullet")
                 Text("\(store.count(in: store.box))").monospacedDigit()
@@ -178,8 +163,8 @@ struct NoteStrip: View {
         .buttonStyle(.plain)
         .help("All Notes")
         .popover(isPresented: $showAll.value, arrowEdge: .bottom) {
-            SidebarView(query: $query)
-                .frame(width: 320, height: 520)
+            SidebarView(query: $query, browsing: $browsing.value)
+                .frame(width: 320, height: 540)
         }
     }
 }
@@ -205,10 +190,12 @@ struct NoteTab: View {
                 RenameField(initial: note.title, onCommit: commitRename, onCancel: { renamingID = nil })
                     .frame(width: 150)
             } else {
+                // Long names end in "…" so more tabs fit, above all in small windows.
                 Text(note.title)
                     .font(.callout.weight(selected ? .semibold : .regular))
                     .lineLimit(1)
-                    .frame(maxWidth: 170)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 120)
             }
         }
         .foregroundStyle(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))

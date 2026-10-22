@@ -152,7 +152,10 @@ final class NoteStore: ObservableObject {
     // MARK: Lists
 
     /// Pinned notes, shown above the rest in the inbox only.
-    var pinnedNotes: [NoteEntry] {
+    var pinnedNotes: [NoteEntry] { pinnedNotes(in: box) }
+    var listNotes: [NoteEntry] { listNotes(in: box) }
+
+    func pinnedNotes(in box: NoteBox) -> [NoteEntry] {
         guard box == .inbox else { return [] }
         return notes.filter { $0.location == .inbox && $0.pinned }
             .sorted { ($0.pinnedAt ?? .distantPast) < ($1.pinnedAt ?? .distantPast) }
@@ -160,7 +163,7 @@ final class NoteStore: ObservableObject {
 
     /// The rest of the current box. Order never depends on opening a note:
     /// creation date, newest first; the Trash shows the latest deletions first.
-    var listNotes: [NoteEntry] {
+    func listNotes(in box: NoteBox) -> [NoteEntry] {
         let inBox = notes.filter { $0.location == box && !(box == .inbox && $0.pinned) }
         if box == .trash {
             return inBox.sorted { ($0.trashedAt ?? .distantPast) > ($1.trashedAt ?? .distantPast) }
@@ -208,6 +211,12 @@ final class NoteStore: ObservableObject {
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         let body = note.id == activeID ? text : (contents[note.id] ?? "")
         return note.title.range(of: query, options: options) != nil || body.range(of: query, options: options) != nil
+    }
+
+    /// Opens a note that may sit in another box, switching to that box.
+    func openNote(_ id: UUID, in newBox: NoteBox) {
+        if newBox != box { box = newBox }
+        select(id)
     }
 
     func show(_ newBox: NoteBox) {
