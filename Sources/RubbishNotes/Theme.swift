@@ -47,11 +47,6 @@ enum IconStyle: String, CaseIterable, Identifiable {
     }
 }
 
-enum Brand {
-    static var accent: Color { IconStyle.current.accent }
-    static var accentNS: NSColor { IconStyle.current.accentNS }
-}
-
 enum AppearanceChoice: String, CaseIterable, Identifiable {
     case system, light, dark
 

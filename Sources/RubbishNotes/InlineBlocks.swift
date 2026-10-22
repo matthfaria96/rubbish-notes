@@ -10,8 +10,6 @@ import SwiftUI
 ///
 /// and in the editor it is a single attachment character with a live view on top.
 enum InlineBlocks {
-    static let openMarker = "⟦bloco⟧"
-    static let collapsedMarker = "⟦bloco recolhido⟧"
     static let closeMarker = "⟦/bloco⟧"
 
     enum Segment: Equatable {

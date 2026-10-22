@@ -13,17 +13,13 @@ private func makeTempStore() -> (NoteStore, URL, UserDefaults) {
 
 @Suite("Status")
 struct StatusTests {
-    @Test func newNotesStartInProgressAndCycleInOrder() throws {
+    @Test func newNotesStartInProgress() throws {
         let (store, root, _) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let id = try #require(store.newNote(name: "a"))
         #expect(store.active?.currentStatus == .inProgress)
-        store.cycleStatus(id)
+        store.setStatus(id, .done)
         #expect(store.active?.currentStatus == .done)
-        store.cycleStatus(id)
-        #expect(store.active?.currentStatus == .open)
-        store.cycleStatus(id)
-        #expect(store.active?.currentStatus == .inProgress)
     }
 
     @Test func statusSurvivesRelaunch() throws {

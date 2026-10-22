@@ -30,6 +30,8 @@ final class EditorTextView: NSTextView {
     /// Called when a block's text, open state or presence changes.
     var onBlocksChanged: (() -> Void)?
     private var blockHosts: [UUID: InlineBlockHost] = [:]
+    /// What each block's view last showed; its view is rebuilt only when this changes.
+    private var blockSignatures: [UUID: String] = [:]
 
     /// Areas of the window (top-left origin) where floating panels and their
     /// buttons sit: the pointer is an arrow there, never the text I-beam.
@@ -69,19 +71,26 @@ final class EditorTextView: NSTextView {
             var rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
             rect.origin.x += textContainerOrigin.x
             rect.origin.y += textContainerOrigin.y
-            let view = blockView(for: block)
-            let host = blockHosts[block.blockID] ?? {
-                let made = InlineBlockHost(rootView: view)
+            // An open block's text lives in its own field; only a folded one shows it (its preview).
+            let shown = block.expanded ? 0 : block.content.hashValue
+            let signature = "\(shown)|\(block.expanded)|\(block.title ?? "")|\(isEditable)|\(blockStyle.text)|\(blockStyle.accent)|\(block.isNew)"
+            if let host = blockHosts[block.blockID] {
+                // Typing elsewhere in the note re-lays the text; the block stays as is.
+                if blockSignatures[block.blockID] != signature {
+                    host.rootView = blockView(for: block)
+                }
+            } else {
+                let made = InlineBlockHost(rootView: blockView(for: block))
                 addSubview(made)
                 blockHosts[block.blockID] = made
-                return made
-            }()
-            host.rootView = view
-            if host.frame != rect { host.frame = rect }
+            }
+            blockSignatures[block.blockID] = signature
+            if let host = blockHosts[block.blockID], host.frame != rect { host.frame = rect }
         }
         for (id, host) in blockHosts where !seen.contains(id) {
             host.removeFromSuperview()
             blockHosts[id] = nil
+            blockSignatures[id] = nil
         }
     }
 

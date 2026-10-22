@@ -14,8 +14,8 @@ extension View {
             .shadow(color: .black.opacity(0.18), radius: 18, y: 6)
             .onExitCommand { isPresented.wrappedValue = false }
             .padding(edge == .leading ? .leading : .trailing, 16)
-            // Footer buttons sit 14 pt up and are about 34 pt tall.
-            .padding(.bottom, 14 + 34 + 10)
+            // Just above the footer buttons (14 pt up, FooterMetrics.height tall).
+            .padding(.bottom, 14 + FooterMetrics.height + 10)
             .transition(.scale(scale: 0.92, anchor: anchor).combined(with: .opacity))
     }
 }

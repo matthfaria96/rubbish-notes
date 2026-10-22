@@ -25,12 +25,6 @@ enum NoteStatus: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Open → In Progress → Done → Open.
-    var next: NoteStatus {
-        let all = Self.allCases
-        return all[(all.firstIndex(of: self)! + 1) % all.count]
-    }
-
     /// An unknown value reads as open instead of failing the whole index.
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -47,11 +41,6 @@ extension NoteEntry {
 extension NoteStore {
     func setStatus(_ id: UUID, _ status: NoteStatus) {
         updateNote(id) { $0.status = status }
-    }
-
-    func cycleStatus(_ id: UUID) {
-        guard let note = notes.first(where: { $0.id == id }) else { return }
-        setStatus(id, note.currentStatus.next)
     }
 
     /// Dragging among the pinned notes: their pin dates are rewritten in the new order.
