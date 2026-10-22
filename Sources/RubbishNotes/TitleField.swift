@@ -4,6 +4,8 @@ import SwiftUI
 /// The note's name in the bar above it. A click turns it into a field;
 /// Return or clicking away saves, Esc puts the old name back.
 struct TitleField: View {
+    /// The widest the name may grow when it sizes itself.
+    var limit: CGFloat = 340
     let title: String
     let editable: Bool
     /// Room the title may take, so the buttons after it stay at the far end.
@@ -22,19 +24,19 @@ struct TitleField: View {
             if let text = draft.value {
                 // The bar gives an unsized field almost no room; give it some.
                 RenameField(initial: text, bold: true, onCommit: commit, onCancel: cancel)
-                    .frame(minWidth: width == nil ? 260 : nil)
+                    .frame(minWidth: width == nil ? min(260, limit - 20) : nil)
             } else {
                 Text(title)
                     .font(.headline)
                     .lineLimit(1)
-                    .frame(maxWidth: width == nil ? 320 : .infinity, alignment: .leading)
-                    .fixedSize(horizontal: width == nil, vertical: false)
+                    .frame(maxWidth: width == nil ? limit - 20 : .infinity, alignment: .leading)
+                    .truncationMode(.tail)
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .frame(width: width, alignment: .leading)
-        .frame(maxWidth: width == nil ? 340 : nil, alignment: .leading)
+        .frame(maxWidth: width == nil ? limit : nil, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture(perform: begin)
         .help(editable ? L("Click to rename") : "")

@@ -5,6 +5,8 @@ import SwiftUI
 /// it; the current one is lit and ringed, and its name sits beside them.
 struct StatusDots: View {
     let status: NoteStatus
+    /// Off when the footer is too narrow; the dots alone remain.
+    var showsName = true
     let onSelect: (NoteStatus) -> Void
 
     var body: some View {
@@ -12,12 +14,14 @@ struct StatusDots: View {
             HStack(spacing: 3) {
                 ForEach(NoteStatus.allCases) { dot($0) }
             }
+            if showsName {
             Text(status.title)
                 .font(.callout.weight(.medium))
                 .foregroundStyle(status.color)
                 .lineLimit(1)
                 .fixedSize()
                 .contentTransition(.opacity)
+            }
         }
         .animation(.easeOut(duration: 0.18), value: status)
         .accessibilityElement(children: .contain)

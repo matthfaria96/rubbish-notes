@@ -202,7 +202,7 @@ struct MainView: View {
                 if #available(macOS 26, *) {
                     // Plain text on the bar, not a glass pill; a flexible space
                     // then carries the buttons to the far edge.
-                    ToolbarItem(placement: .navigation) { titleField(width: nil) }
+                    ToolbarItem(placement: .navigation) { titleField(width: nil, limit: titleLimit) }
                         .sharedBackgroundVisibility(.hidden)
                     ToolbarSpacer(.flexible, placement: .primaryAction)
                 } else {
@@ -222,8 +222,16 @@ struct MainView: View {
         .animation(.smooth(duration: 0.25), value: toastState.value)
     }
 
-    private func titleField(width: CGFloat?) -> some View {
+    /// The name gives way first when the window narrows, so the buttons never
+    /// spill into the bar's » menu.
+    private var titleLimit: CGFloat {
+        let buttons: CGFloat = focusMode ? 70 : 290
+        return min(340, max(70, detailWidth.value - buttons))
+    }
+
+    private func titleField(width: CGFloat?, limit: CGFloat = 340) -> some View {
         TitleField(
+            limit: limit,
             title: store.active?.title ?? "Rubbish Notes",
             editable: store.active.map { $0.location != .trash } ?? false,
             width: width
@@ -366,25 +374,40 @@ struct MainView: View {
         .padding(.bottom, 14)
     }
 
+    /// Room between the two corner buttons (16 pt margin, the button, a gap).
+    private var footerMiddleWidth: CGFloat {
+        detailWidth.value - 2 * (16 + FooterMetrics.cornerWidth + 14)
+    }
+
+    /// Shrinks with the window: the counts end in "…", then go, then the
+    /// status name goes and only the dots stay. Never runs under the corners.
     private var statusCapsule: some View {
         let selection = selectionState.value
         let hasSelection = selection.characters > 0
         let words = hasSelection ? selection.words : store.counts.words
         let characters = hasSelection ? selection.characters : store.counts.characters
+        let room = footerMiddleWidth
+        let showCounts = room >= 270
+        let showName = room >= 190
+        let counts = [
+            words == 1 ? L("1 word") : L("%ld words", words),
+            characters == 1 ? L("1 character") : L("%ld characters", characters),
+        ].joined(separator: " · ") + (hasSelection ? " " + L("selected") : "")
         return HStack(spacing: 6) {
             if let note = store.active {
-                StatusDots(status: note.currentStatus) { store.setStatus(note.id, $0) }
-                Text("·").foregroundStyle(.tertiary).allowsHitTesting(false)
+                StatusDots(status: note.currentStatus, showsName: showName) { store.setStatus(note.id, $0) }
+                    .layoutPriority(1)
+                if showCounts {
+                    Text("·").foregroundStyle(.tertiary).allowsHitTesting(false)
+                }
             }
-            Group {
-            Text(words == 1 ? L("1 word") : L("%ld words", words))
-            Text("·").foregroundStyle(.tertiary)
-            Text(characters == 1 ? L("1 character") : L("%ld characters", characters))
-            if hasSelection {
-                Text("selected").foregroundStyle(iconStyle.accent)
+            if showCounts {
+                Text(counts)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(hasSelection ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .allowsHitTesting(false)
             }
-            }
-            .allowsHitTesting(false)
         }
         .font(.callout)
         .monospacedDigit()
@@ -392,8 +415,12 @@ struct MainView: View {
         .padding(.horizontal, 12)
         .frame(height: FooterMetrics.height)
         .compatGlass(in: Capsule())
+        .frame(maxWidth: max(60, room))
         .padding(.bottom, 14)
+        .animation(.easeOut(duration: 0.15), value: showCounts)
+        .animation(.easeOut(duration: 0.15), value: showName)
     }
+
 
     @ViewBuilder
     private var attachmentStrip: some View {
