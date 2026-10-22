@@ -36,12 +36,18 @@ extension View {
     }
 }
 
-/// Room around a footer button's icon.
+/// One size for everything floating in the footer: the corner buttons match
+/// each other and the height of the word count in the middle.
+enum FooterMetrics {
+    static let height: CGFloat = 32
+    static let cornerWidth: CGFloat = 64
+}
+
+/// A corner button's label: centred in the shared footer size.
 struct LegacyFooterPadding: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .frame(width: FooterMetrics.cornerWidth, height: FooterMetrics.height)
             .contentShape(Capsule())
     }
 }

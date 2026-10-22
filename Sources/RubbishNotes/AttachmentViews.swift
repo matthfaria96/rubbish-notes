@@ -4,39 +4,35 @@ import SwiftUI
 /// The note's images in the footer: a small fanned pile with a count, narrow
 /// enough to leave the centred word count alone. A click opens the lightbox.
 struct AttachmentShelf: View {
-    static let pileLimit = 3
+    static let pileLimit = 2
     let urls: [URL]
     let onOpen: (URL) -> Void
 
+    /// Same size as the blocks button: two small fanned thumbnails and the count.
     var body: some View {
         let pile = Array(urls.prefix(Self.pileLimit))
         Button { if let first = urls.first { onOpen(first) } } label: {
-            ZStack(alignment: .leading) {
-                ForEach(Array(pile.enumerated().reversed()), id: \.element) { offset, url in
-                    AttachmentThumb(url: url, side: 40)
-                        .shadow(color: .black.opacity(0.18), radius: 2, x: 1)
-                        .offset(x: CGFloat(offset) * 9)
-                        .rotationEffect(.degrees(Double(offset) * 4), anchor: .bottom)
+            HStack(spacing: 6) {
+                ZStack(alignment: .leading) {
+                    ForEach(Array(pile.enumerated().reversed()), id: \.element) { offset, url in
+                        AttachmentThumb(url: url, side: 20)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .shadow(color: .black.opacity(0.2), radius: 1.5, x: 1)
+                            .offset(x: CGFloat(offset) * 6)
+                            .rotationEffect(.degrees(Double(offset) * 6), anchor: .bottom)
+                    }
                 }
+                .frame(width: 20 + CGFloat(pile.count - 1) * 6, alignment: .leading)
+                Text("\(urls.count)")
+                    .font(.callout)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: 40 + CGFloat(pile.count - 1) * 9, alignment: .leading)
-            .overlay(alignment: .topTrailing) {
-                if urls.count > 1 {
-                    Text("\(urls.count)")
-                        .font(.caption2.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .frame(minWidth: 18, minHeight: 18)
-                        .background(Color.accentColor, in: Capsule())
-                        .offset(x: 7, y: -7)
-                }
-            }
-            .padding(6)
-            .contentShape(Rectangle())
+            .frame(width: FooterMetrics.cornerWidth, height: FooterMetrics.height)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .compatGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .compatGlass(in: Capsule())
         .help(urls.count == 1 ? L("Open Image") : L("%ld images", urls.count))
     }
 }

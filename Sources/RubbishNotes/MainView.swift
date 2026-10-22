@@ -374,7 +374,7 @@ struct MainView: View {
         let minutes = max(1, Int((Double(words) / 220).rounded()))
         return HStack(spacing: 6) {
             if let note = store.active {
-                StatusDots(status: note.currentStatus) { store.cycleStatus(note.id) }
+                StatusDots(status: note.currentStatus) { store.setStatus(note.id, $0) }
                 Text("·").foregroundStyle(.tertiary).allowsHitTesting(false)
             }
             Group {
@@ -393,8 +393,8 @@ struct MainView: View {
         .font(.callout)
         .monospacedDigit()
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 12)
+        .frame(height: FooterMetrics.height)
         .compatGlass(in: Capsule())
         .padding(.bottom, 14)
     }
@@ -415,7 +415,7 @@ struct MainView: View {
                     withAnimation(ImageLightbox.motion) { lightbox.value = url }
                 }
                     .padding(.trailing, 16)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 14)
                     .transition(.scale(scale: 0.9, anchor: .bottomTrailing).combined(with: .opacity))
             }
         }
