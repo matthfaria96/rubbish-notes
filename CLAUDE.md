@@ -4,9 +4,11 @@ Plain-text notes app for macOS (SwiftUI + AppKit, Swift Package, no Xcode projec
 This file is the state of the project, so a new session doesn't have to read the
 whole codebase. Keep it current when something here changes.
 
-Last updated 2026-10-22. Version **1.0.0**, published as the only GitHub
-release (v1.0.0) and installed on the owner's Mac. The owner considers the
-project done; only fixes from here.
+Last updated 2026-10-24. Version **1.1.0** (adds Markdown export) is built and
+installed on the owner's Mac but **not published**; the only GitHub release is
+v1.0.0. The project lives on the external disk
+(`/Volumes/MacMiniDev/Moved/VSCode Temp/Rubbish Notes`; `~/Documents/VSCode Temp`
+is a symlink to it).
 
 ## Where things stand
 
@@ -25,7 +27,7 @@ project done; only fixes from here.
 
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer   # tests need Xcode
-swift test                          # 40 tests (Swift Testing), Tests/RubbishNotesTests
+swift test                          # 41 tests (Swift Testing), Tests/RubbishNotesTests
 scripts/build-app.sh --install      # universal app → build/ and /Applications
 ```
 
@@ -54,7 +56,9 @@ scripts/build-app.sh --install      # universal app → build/ and /Applications
   Its notes live in `~/Library/Containers/local.rubbishnotes.check/…`; delete
   that container and `defaults delete local.rubbishnotes.check` afterwards.
 - **Quit the owner's app first** (`osascript -e 'quit app id "local.rubbishnotes.app"'`)
-  and reopen it at the end. Both copies are named "Rubbish Notes", so clicks
+  and reopen it at the end. Before every click or capture, check with
+  `ps -axo pid,command | grep MacOS/RubbishNotes` that only the test copy runs:
+  the owner's app was once relaunched seconds after being quit. Both copies are named "Rubbish Notes", so clicks
   and captures can land on the real notes.
 - Look only at the app's window: `swiftc scripts/ui-test/winid.swift -o winid`,
   then `screencapture -x -o -l$(./winid "Rubbish Notes") out.png`
@@ -85,7 +89,7 @@ plus `notes-index.json` (box, pin, status, order, `attachments`, footer
 | `NoteStrip.swift` | Tabs layout (Settings › General › Window › Notes list): box menu, scrolling tabs (pinned first, names truncate, drag one onto another), All Notes panel, new note. |
 | `Editor.swift` | `EditorTextView` (TextKit 1 NSTextView): plain-text paste, images to attachments, arrow cursor over the footer and panels, Esc closes find, note-block overlays and dragging. |
 | `InlineBlocks.swift` | Note blocks inside the text. In the .txt: `⟦bloco⟧` / `⟦bloco recolhido⟧`, optionally `⟦bloco: Name⟧`, then the text, then `⟦/bloco⟧`. In the editor: one attachment character whose cell reserves room; `InlineBlockHost` (SwiftUI) sits on top. Header click folds; ··· = Change Name, Copy, Export (text/PDF/Markdown), Delete (confirmed). `BlockGrip` drags in document coordinates with edge auto-scroll and an accent drop line. |
-| `NoteExport.swift` | Export note as PDF or text (title, text with blocks open, footer blocks); with images, a .zip. Block export. `ExportMenu`. |
+| `NoteExport.swift` | Export note as PDF or text (title, text with blocks open, footer blocks; with images, a .zip) or Markdown (`# title`, the text without its note blocks, then each note block and footer block as a `##` section; never zipped, images left out). Block export. `ExportMenu`. |
 | `AttachmentViews.swift` | Footer image button, empty-state hint panel, `ImageLightbox` (themed, filmstrip, never Quick Look — the owner forbade it). |
 | `BlocksView.swift` | Footer blocks panel (200–520 pt tall). |
 | `FloatingPanel.swift` | `footerPanel` look; `FooterPanelZones` closes panels on outside clicks and keeps the arrow cursor over them. |

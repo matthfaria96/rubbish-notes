@@ -2,12 +2,32 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// Exports a note: its title and text, then its blocks in order. As PDF or
-/// plain text; with images, a .zip holding that file plus the images.
+/// plain text (with images, a .zip holding that file plus the images), or as
+/// Markdown (always the .md alone).
 enum NoteExportFormat: String, CaseIterable, Identifiable {
-    case pdf, txt
+    case pdf, txt, md
     var id: String { rawValue }
-    var title: String { self == .pdf ? "PDF" : L("Plain Text") }
-    var symbol: String { self == .pdf ? "doc.richtext" : "doc.plaintext" }
+    var title: String {
+        switch self {
+        case .pdf: "PDF"
+        case .txt: L("Plain Text")
+        case .md: "Markdown"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .pdf: "doc.richtext"
+        case .txt: "doc.plaintext"
+        case .md: "number"
+        }
+    }
+    var contentType: UTType {
+        switch self {
+        case .pdf: .pdf
+        case .txt: .plainText
+        case .md: UTType(filenameExtension: "md") ?? .plainText
+        }
+    }
 }
 
 enum BlockExportFormat: String, CaseIterable, Identifiable {
@@ -41,10 +61,11 @@ enum NoteExporter {
     @discardableResult
     static func export(title: String, text: String, blocks: [String], images: [URL], as format: NoteExportFormat) -> Bool {
         let base = NoteStore.sanitize(title).isEmpty ? "Note" : NoteStore.sanitize(title)
-        let zipped = !images.isEmpty
+        // Markdown is the text alone; the other formats carry the images in a .zip.
+        let zipped = !images.isEmpty && format != .md
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "\(base).\(zipped ? "zip" : format.rawValue)"
-        panel.allowedContentTypes = [zipped ? .zip : (format == .pdf ? .pdf : .plainText)]
+        panel.allowedContentTypes = [zipped ? .zip : format.contentType]
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let dest = panel.url else { return true }
         do {
@@ -56,6 +77,7 @@ enum NoteExporter {
             switch format {
             case .txt: try plainText(title: title, text: text, blocks: blocks).write(to: document, atomically: true, encoding: .utf8)
             case .pdf: try writePDF(attributed(title: title, text: text, blocks: blocks), to: document)
+            case .md: try markdown(title: title, text: text, blocks: blocks).write(to: document, atomically: true, encoding: .utf8)
             }
             if zipped {
                 let imageFolder = folder.appendingPathComponent(L("Images"), isDirectory: true)
@@ -105,6 +127,29 @@ enum NoteExporter {
         var parts = [title, "", InlineBlocks.readable(text).trimmingCharacters(in: .newlines)]
         for (index, block) in blocks.enumerated() {
             parts += ["", "", "— \(L("Block %ld", index + 1)) —", "", block]
+        }
+        return parts.joined(separator: "\n") + "\n"
+    }
+
+    /// The note's own text first (its note blocks taken out), then each note
+    /// block and each footer block as a section of its own.
+    static func markdown(title: String, text: String, blocks: [String]) -> String {
+        let segments = InlineBlocks.segments(of: text)
+        // A block sat on its own line: the break after it goes with it.
+        let body = segments.enumerated().compactMap { index, segment -> String? in
+            guard case .text(let string) = segment else { return nil }
+            let afterBlock: Bool
+            if index > 0, case .block = segments[index - 1] { afterBlock = true } else { afterBlock = false }
+            return afterBlock && string.hasPrefix("\n") ? String(string.dropFirst()) : string
+        }.joined()
+        var parts = ["# \(title)", "", body.trimmingCharacters(in: .newlines)]
+        for segment in segments {
+            if case .block(let content, _, let name) = segment {
+                parts += ["", "## \(name ?? L("Note block"))", "", content]
+            }
+        }
+        for (index, block) in blocks.enumerated() {
+            parts += ["", "## \(L("Block %ld", index + 1))", "", block]
         }
         return parts.joined(separator: "\n") + "\n"
     }

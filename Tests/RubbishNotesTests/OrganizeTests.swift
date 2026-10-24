@@ -205,3 +205,16 @@ struct NamedInlineBlockTests {
         #expect(InlineBlocks.readable(text).contains("Endereço:\nRua 1"))
     }
 }
+
+@Suite("Markdown export")
+struct MarkdownExportTests {
+    @Test func textFirstThenEveryBlockAsASection() {
+        let text = "Intro\n⟦bloco: Roteiro⟧\nDia 1\nDia 2\n⟦/bloco⟧\nMeio\n⟦bloco recolhido⟧\nsem nome\n⟦/bloco⟧\nFim\n"
+        let md = NoteExporter.markdown(title: "Viagem", text: text, blocks: ["rodapé"])
+        #expect(!md.contains("⟦"))
+        #expect(md.hasPrefix("# Viagem\n\nIntro\nMeio\nFim"))
+        let order = ["## Roteiro", "Dia 1\nDia 2", "## \(L("Note block"))", "sem nome", "## \(L("Block %ld", 1))", "rodapé"]
+            .map { md.range(of: $0)!.lowerBound }
+        #expect(order == order.sorted())
+    }
+}
