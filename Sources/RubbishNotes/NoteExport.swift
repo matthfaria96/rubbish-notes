@@ -191,7 +191,7 @@ enum NoteExporter {
     }
 
     /// The system zips a folder when it is read "for uploading".
-    private static func zip(_ folder: URL, to dest: URL) throws {
+    static func zip(_ folder: URL, to dest: URL) throws {
         var failure: Error?
         var coordinatorError: NSError?
         NSFileCoordinator().coordinate(readingItemAt: folder, options: .forUploading, error: &coordinatorError) { zipURL in

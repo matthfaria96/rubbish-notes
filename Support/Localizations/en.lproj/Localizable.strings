@@ -195,6 +195,11 @@
 "Its %ld sub-notes go with it. You can restore them from the Trash later." = "Its %ld sub-notes go with it. You can restore them from the Trash later.";
 "Delete this note and its sub-notes?" = "Delete this note and its sub-notes?";
 "Its %ld sub-notes will be deleted too. You can’t undo this." = "Its %ld sub-notes will be deleted too. You can’t undo this.";
+"Export the sub-notes too?" = "Export the sub-notes too?";
+"“%@” has 1 sub-note. With it, you get a .zip with one Markdown file per note." = "“%@” has 1 sub-note. With it, you get a .zip with one Markdown file per note.";
+"“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note." = "“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note.";
+"Include Sub-notes" = "Include Sub-notes";
+"This Note Only" = "This Note Only";
 "Shopping list" = "Shopping list";
 "written on " = "written on ";
 "rubbish," = "rubbish,";

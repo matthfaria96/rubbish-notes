@@ -74,13 +74,30 @@ extension NoteStore {
 // MARK: Export
 
 extension NoteStore {
-    /// Exports any note (open or not) with its blocks and images.
+    /// Exports any note (open or not) with its blocks and images. As Markdown,
+    /// a note with sub-notes asks whether they go too (then it is a .zip).
     func exportNote(_ id: UUID, as format: NoteExportFormat) {
         guard let note = notes.first(where: { $0.id == id }) else { return }
-        if id == activeID { flushNow() }
-        let body = id == activeID ? text : ((try? String(contentsOf: url(for: note), encoding: .utf8)) ?? "")
-        NoteExporter.export(title: note.title, text: body, blocks: blocks(of: id),
+        flushNow()
+        let children = format == .md ? subnotes(of: id) : []
+        if !children.isEmpty {
+            guard let include = NoteExporter.askIncludeSubnotes(title: note.title, count: children.count) else { return }
+            if include {
+                NoteExporter.exportMarkdown(markdownNote(note), subnotes: children.map(markdownNote))
+                return
+            }
+        }
+        NoteExporter.export(title: note.title, text: body(of: note), blocks: blocks(of: id),
                             images: attachmentURLs(of: id), as: format)
+    }
+
+    /// The note's text: the editor's for the open note, the file's for the others.
+    func body(of note: NoteEntry) -> String {
+        note.id == activeID ? text : ((try? String(contentsOf: url(for: note), encoding: .utf8)) ?? "")
+    }
+
+    func markdownNote(_ note: NoteEntry) -> MarkdownNote {
+        MarkdownNote(title: note.title, text: body(of: note), blocks: blocks(of: note.id))
     }
 }
 

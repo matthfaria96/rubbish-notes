@@ -281,7 +281,7 @@ struct MainView: View {
 
                 Menu {
                     ForEach(NoteExportFormat.allCases) { format in
-                        menuItem(L("Export as %@…", format.title), format.symbol) { export(note, as: format) }
+                        menuItem(L("Export as %@…", format.title), format.symbol) { store.exportNote(note.id, as: format) }
                     }
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
@@ -335,17 +335,6 @@ struct MainView: View {
             Label { Text(title) } icon: { Image(systemName: symbol) }
                 .labelStyle(.titleAndIcon)
         }
-    }
-
-    private func export(_ note: NoteEntry, as format: NoteExportFormat) {
-        store.flushNow()
-        NoteExporter.export(
-            title: note.title,
-            text: store.text,
-            blocks: store.blocks(of: note.id),
-            images: store.attachmentURLs(of: note.id),
-            as: format
-        )
     }
 
     private var focusButton: some View {

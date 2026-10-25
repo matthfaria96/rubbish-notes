@@ -195,6 +195,11 @@
 "Its %ld sub-notes go with it. You can restore them from the Trash later." = "Sus %ld subnotas van con ella. Puedes restaurarlas desde la papelera más tarde.";
 "Delete this note and its sub-notes?" = "¿Eliminar esta nota y sus subnotas?";
 "Its %ld sub-notes will be deleted too. You can’t undo this." = "Sus %ld subnotas también se eliminarán. No se puede deshacer.";
+"Export the sub-notes too?" = "¿Exportar también las subnotas?";
+"“%@” has 1 sub-note. With it, you get a .zip with one Markdown file per note." = "«%@» tiene 1 subnota. Si la incluyes, obtendrás un .zip con un archivo Markdown por nota.";
+"“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note." = "«%@» tiene %ld subnotas. Si las incluyes, obtendrás un .zip con un archivo Markdown por nota.";
+"Include Sub-notes" = "Incluir subnotas";
+"This Note Only" = "Solo esta nota";
 "Shopping list" = "Lista de la compra";
 "written on " = "escrito en la ";
 "rubbish," = "basura,";
