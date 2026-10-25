@@ -6,13 +6,25 @@ A plain-text notes app for macOS. Every note is a real `.txt` file, saved a mome
 
 - **Note blocks** inside the text for longer passages: name them, fold them to one line, drag them between lines, copy or export them (plain text, PDF, Markdown).
 - **Images and blocks in the footer**, kept apart from your writing. Images open in the app's own lightbox.
-- **Status** per note (open, in progress, done), pinning, Archive and Trash, drag to reorder, and export as PDF or text (zipped with the images).
+- **Status** per note (open, in progress, done), pinning, Archive and Trash, drag to reorder, and export as PDF or text (zipped with the images) or as Markdown (the text first, then each note block and footer block as its own section).
 - **Sidebar or tabs:** a vertical list, or tabs across the top with an All Notes panel for when there are many.
 - **Themes that colour the whole window**, a glass sidebar and adjustable window opacity. Six languages.
 
 | Tabs layout | Themes |
 |---|---|
 | ![Tabs across the top of the window](docs/screenshots/tabs.png) | ![The Themes tab in Settings](docs/screenshots/themes.png) |
+
+## Install
+
+Download `RubbishNotes-<version>.dmg` from [Releases](https://github.com/matthfaria96/rubbish-notes/releases) or from [witchmymac.com](https://witchmymac.com), open it and drag **Rubbish Notes** to Applications.
+
+The app is not notarized, so macOS blocks it the first time. To allow it, paste this in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Rubbish Notes.app"
+```
+
+It only removes the "downloaded from the internet" mark from that app. Without Terminal: open the app, click OK on the warning, then go to System Settings › Privacy & Security and click Open Anyway.
 
 ## Build
 
