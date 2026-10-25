@@ -18,15 +18,19 @@ A plain-text notes app for macOS. Every note is a real `.txt` file, saved a mome
 
 ## Install
 
-Download `RubbishNotes-<version>.dmg` from [Releases](https://github.com/matthfaria96/rubbish-notes/releases) or from [witchmymac.com](https://witchmymac.com), open it and drag **Rubbish Notes** to Applications.
+Pick one:
 
-The app is not notarized, so macOS blocks it the first time. To allow it, paste this in Terminal:
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Rubbish Notes.app"
-```
-
-It only removes the "downloaded from the internet" mark from that app. Without Terminal: open the app, click OK on the warning, then go to System Settings › Privacy & Security and click Open Anyway.
+1. **Terminal, one line (recommended).** Paste this into Terminal:
+   ```sh
+   curl -fsSL https://witchmymac.com/install.sh | bash -s rubbishnotes
+   ```
+   It downloads the latest release from GitHub, checks its SHA-256, installs Rubbish Notes in Applications and opens it. There's no macOS warning, because files downloaded by `curl` don't get the "downloaded from the internet" mark. Run the same line again to update. The script is open: [install.sh](https://witchmymac.com/install.sh).
+2. **Download the DMG** from [Releases](https://github.com/matthfaria96/rubbish-notes/releases) or [witchmymac.com](https://witchmymac.com), drag Rubbish Notes to Applications, then allow it once with:
+   ```sh
+   xattr -dr com.apple.quarantine "/Applications/Rubbish Notes.app"
+   ```
+   It only removes the "downloaded from the internet" mark from that app.
+3. **Download the DMG** and allow it in System Settings: open the app, click OK on the warning, then go to System Settings › Privacy & Security and click Open Anyway.
 
 ## Build
 
