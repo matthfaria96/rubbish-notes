@@ -5,19 +5,20 @@ struct SettingsView: View {
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
     @AppStorage(Prefs.iconStyle) private var iconStyleRaw = IconStyle.blue.rawValue
+    @State private var tab = Showcase.value("settings") ?? "general"
 
     var body: some View {
-        TabView {
-            Tab("General", systemImage: "gearshape") {
+        TabView(selection: $tab) {
+            Tab("General", systemImage: "gearshape", value: "general") {
                 GeneralSettings()
             }
-            Tab("Editor", systemImage: "textformat") {
+            Tab("Editor", systemImage: "textformat", value: "editor") {
                 EditorSettings()
             }
-            Tab("Themes", systemImage: "paintpalette") {
+            Tab("Themes", systemImage: "paintpalette", value: "themes") {
                 ThemeSettings()
             }
-            Tab {
+            Tab(value: "about") {
                 AboutSettings()
             } label: {
                 Label { Text("About", tableName: "About") } icon: { Image(systemName: "info.circle") }

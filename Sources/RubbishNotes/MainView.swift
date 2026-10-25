@@ -32,6 +32,7 @@ struct MainView: View {
     /// Images waiting for the delete confirmation.
     @StateObject private var pendingDelete = ViewState<[URL]>([])
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     private var appearance: AppearanceChoice { AppearanceChoice(rawValue: appearanceRaw) ?? .system }
     private var iconStyle: IconStyle { IconStyle(rawValue: iconStyleRaw) ?? .blue }
@@ -178,6 +179,7 @@ struct MainView: View {
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { detailWidth.value = $0 }
         .overlay { lightboxView }
         .overlay(alignment: .top) { toast }
+        .task { await applyShowcase() }
         .onChange(of: store.activeID) {
             lightbox.value = nil
             blocksOpen.value = false
@@ -448,6 +450,15 @@ struct MainView: View {
                     .transition(.scale(scale: 0.9, anchor: .bottomTrailing).combined(with: .opacity))
             }
         }
+    }
+
+    /// RUBBISHNOTES_SHOWCASE (screenshots only): opens panels without clicks.
+    private func applyShowcase() async {
+        guard !Showcase.options.isEmpty else { return }
+        try? await Task.sleep(for: .seconds(1))
+        if Showcase.has("blocks") { blocksOpen.value = true }
+        if Showcase.has("lightbox"), let id = store.activeID { lightbox.value = store.attachmentURLs(of: id).first }
+        if Showcase.has("settings") { openSettings() }
     }
 
     @ViewBuilder

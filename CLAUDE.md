@@ -76,6 +76,13 @@ scripts/build-app.sh --install      # universal app → build/ and /Applications
   `ps -axo pid,command | grep MacOS/RubbishNotes` that only the test copy runs:
   the owner's app was once relaunched seconds after being quit. Both copies are named "Rubbish Notes", so clicks
   and captures can land on the real notes.
+- Screenshots without clicks: launch with `RUBBISHNOTES_SHOWCASE` (comma list, `Showcase.swift`):
+  `blocks` opens the footer blocks panel, `lightbox` the open note's first image,
+  `settings=general|editor|themes|about` opens Settings on that tab. Prefs can be
+  passed as launch arguments (`-RubbishNotes.editorTheme paper`,
+  `-RubbishNotes.activeNoteID <uuid>`). Used for the witchmymac showcase page;
+  remove `container-migration.plist` from such a copy so it never moves the
+  owner's files into its container.
 - Look only at the app's window: `swiftc scripts/ui-test/winid.swift -o winid`,
   then `screencapture -x -o -l$(./winid "Rubbish Notes") out.png`
   (`./winid "Rubbish Notes" Temas` picks a window by title). Never capture the
