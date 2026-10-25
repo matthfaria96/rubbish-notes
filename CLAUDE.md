@@ -4,9 +4,9 @@ Plain-text notes app for macOS (SwiftUI + AppKit, Swift Package, no Xcode projec
 This file is the state of the project, so a new session doesn't have to read the
 whole codebase. Keep it current when something here changes.
 
-Last updated 2026-10-24. Version **1.1.0** (adds Markdown export) is built and
-installed on the owner's Mac but **not published**; the only GitHub release is
-v1.0.0. The project lives on the external disk
+Last updated 2026-10-24. Version **1.1.0** (Markdown export, sub-notes, plain
+text windows for outside .txt files) is built and installed on the owner's Mac
+but **not published**; the only GitHub release is v1.0.0. The project lives on the external disk
 (`/Volumes/MacMiniDev/Moved/VSCode Temp/Rubbish Notes`; `~/Documents/VSCode Temp`
 is a symlink to it).
 
@@ -27,13 +27,14 @@ is a symlink to it).
 
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer   # tests need Xcode
-swift test                          # 41 tests (Swift Testing), Tests/RubbishNotesTests
+swift test                          # 58 tests (Swift Testing), Tests/RubbishNotesTests
 scripts/build-app.sh --install      # universal app → build/ and /Applications
 ```
 
 - `build-app.sh` restamps the binary's SDK version with `vtool`. Without it,
   SwiftPM records sdk 15.0 and macOS 26+ runs the app without Liquid Glass.
-- Version: `CFBundleShortVersionString` in `Support/Info.plist`.
+- Version: `CFBundleShortVersionString` in `Support/Info.plist`; bump
+  `CFBundleVersion` for each build handed to the owner.
 - Strings: add rows to `scripts/make-strings.py` (key, en, pt, es, fr, de, it),
   then `python3 scripts/make-strings.py Support/Localizations`. The script
   refuses duplicate keys. Interpolated SwiftUI text uses keys like `%lld pt`.
@@ -72,24 +73,59 @@ scripts/build-app.sh --install      # universal app → build/ and /Applications
 - Position the test window: `tell application "System Events" to tell (first
   process whose bundle identifier is "local.rubbishnotes.check")` → set
   position / size of window 1.
+- **Prefer accessibility actions over real input.** Other apps (and other
+  sessions) may be using the screen: `keystroke` goes to whatever app is in
+  front, and the test window has been clicked and closed by someone else
+  mid-test. Through System Events on that process: `set selected of row N of
+  outline 1 of scroll area 1 of group 1 of splitter group 1 of group 1 of
+  window 1`, `click menu item "Nova Sub-nota" of menu "Arquivo" of menu bar 1`,
+  `perform action "AXPress"` on a row's button, `set value of text area 1 …`
+  (plain windows: `window "x.txt – Texto simples"`). Alerts and save panels
+  are windows of the process too (`click button "Salvar" of splitter group 1
+  of window "Salvar"`). Setting a SwiftUI TextField's value this way doesn't
+  reach its binding (search can't be driven like that).
+- Outside files: `open -a "<copy>.app" file.txt` (the sandbox grants access).
+  The copy declares public.plain-text, so unregister it before deleting it:
+  `lsregister -u "<copy>.app"`. Never press Settings › Make Default on a test
+  copy: it changes the owner's default .txt app.
 
 ## How it works
 
 Notes are real `.txt` files in the sandbox container
 (`~/Library/Containers/local.rubbishnotes.app/Data/Library/Application Support/Rubbish Notes/{Notes,Archive,Trash}`),
 plus `notes-index.json` (box, pin, status, order, `attachments`, footer
-`blocks`) and `Attachments/<note id>/` for images.
+`blocks`, `parent` for sub-notes, `subnotesCollapsed` on parents) and
+`Attachments/<note id>/` for images.
+
+Sub-notes are ordinary .txt notes in their parent's folder, linked by id in
+the index (one level deep). They are listed under the parent while both are
+in the same box (`nestedIDs`, `outline(_:query:keep:)`), travel with it in
+`move` (archive, trash, restore, undo) and are deleted with it from the
+Trash after a confirmation (`requestDeletePermanently`). A missing parent
+releases them (`releaseOrphans`).
+
+Files opened from the Finder / Open With / the Dock go through
+`AppDelegate.application(_:open:)` → `FileOpening`: a note's own file opens
+that note, other plain text opens in a `PlainTextDocument` window (never
+imported), RTF/HTML are imported as before. Launched just for such files,
+the notes window is closed again (`launchIsDefaultUserInfoKey`).
 
 | File | Holds |
 |---|---|
-| `NoteStore.swift` | Notes, boxes, select/rename/move/trash, undo, file watching, index (selecting saves it 1 s later, debounced). `pinnedNotes(in:)`, `listNotes(in:)`, `openNote(_:in:)`. |
+| `NoteStore.swift` | Notes, boxes, select/rename/move/trash (sub-notes go along), undo, file watching, index (selecting saves it 1 s later, debounced). `pinnedNotes(in:)`, `listNotes(in:)` (top-level only), `openNote(_:in:)`. |
+| `NoteStore+Subnotes.swift` | Sub-notes: `newSubnote`, `subnotes(of:)`, collapse state, `outline` (rows for the lists, search included), `outlineMove` (drag maps to top-level order), `NoteListItem`. |
+| `NoteStore+Files.swift` | Import (Open…, drops on the window), Save a Copy, `libraryNote(at:)` / `isInLibrary` for files opened from outside. |
 | `NoteStore+Organize.swift` | Status, drag order (`reorder`, `reorderPinned`), export entry point, footer blocks API, image attachments, `ThumbnailCache`. |
 | `MainView.swift` | Window: editor, footer (blocks button left, status + counts centred, images right; middle shrinks on narrow windows), corner panels, lightbox, toolbar (title, Find / Export / ··· group, (+) note block, focus bolt at the far right), layout switch, theme colours. |
-| `SidebarView.swift` | Vertical list: search, pinned + list sections, drag reorder, Delete All / Empty Trash chips, `BoxSwitcher`. With `browsing:` it is the tabs layout's All Notes panel (switching boxes there doesn't move the window). `NoteContextMenu` is shared with the tabs. |
-| `NoteStrip.swift` | Tabs layout (Settings › General › Window › Notes list): box menu, scrolling tabs (pinned first, names truncate, drag one onto another), All Notes panel, new note. |
+| `SidebarView.swift` | Vertical list: search, pinned + list sections (rows from `outline`, sub-notes indented), drag reorder, Delete All / Empty Trash chips, `BoxSwitcher`. With `browsing:` it is the tabs layout's All Notes panel (switching boxes there doesn't move the window). `NoteContextMenu` (New Sub-note, Show/Hide Sub-notes) is shared with the tabs. |
+| `SubnoteViews.swift` | `SubnoteToggle` (count + chevron glass capsule on a parent), `NotesSectionHeader` with the Collapse/Expand all chip, `subnoteIndent` (indent + accent guide line). |
+| `NoteStrip.swift` | Tabs layout (Settings › General › Window › Notes list): box menu, scrolling tabs (pinned first, names truncate, drag one onto another; sub-notes follow their parent with ↳, the open one stays even when hidden), All Notes panel, new note. |
 | `Editor.swift` | `EditorTextView` (TextKit 1 NSTextView): plain-text paste, images to attachments, arrow cursor over the footer and panels, Esc closes find, note-block overlays and dragging. |
 | `InlineBlocks.swift` | Note blocks inside the text. In the .txt: `⟦bloco⟧` / `⟦bloco recolhido⟧`, optionally `⟦bloco: Name⟧`, then the text, then `⟦/bloco⟧`. In the editor: one attachment character whose cell reserves room; `InlineBlockHost` (SwiftUI) sits on top. Header click folds; ··· = Change Name, Copy, Export (text/PDF/Markdown), Delete (confirmed). `BlockGrip` drags in document coordinates with edge auto-scroll and an accent drop line. |
-| `NoteExport.swift` | Export note as PDF or text (title, text with blocks open, footer blocks; with images, a .zip) or Markdown (`# title`, the text without its note blocks, then each note block and footer block as a `##` section; never zipped, images left out). Block export. `ExportMenu`. |
+| `NoteExport.swift` | Export note as PDF or text (title, text with blocks open, footer blocks; with images, a .zip) or Markdown (`# title`, the text without its note blocks, then each note block and footer block as a `##` section; images left out). Block export. `ExportMenu`. |
+| `SubnoteExport.swift` | Markdown of a parent with sub-notes: asks (`askIncludeSubnotes`), then one .zip with `<parent>/<parent>.md` (ending in links) and one .md per sub-note (`markdownFileNames`: sanitized, no case-insensitive repeats). |
+| `PlainTextDocument.swift` | NSDocument for outside text files: plain `NSTextView` window (no tabs/sidebar/blocks/images), editor font + theme, autosave in place 1 s after typing, original encoding kept. |
+| `FileOpening.swift` | Routes files opened from outside (note / plain window / import); `DefaultTextApp` (Settings › Text Files › Make Default via `NSWorkspace.setDefaultApplication`). |
 | `AttachmentViews.swift` | Footer image button, empty-state hint panel, `ImageLightbox` (themed, filmstrip, never Quick Look — the owner forbade it). |
 | `BlocksView.swift` | Footer blocks panel (200–520 pt tall). |
 | `FloatingPanel.swift` | `footerPanel` look; `FooterPanelZones` closes panels on outside clicks and keeps the arrow cursor over them. |
@@ -97,9 +133,9 @@ plus `notes-index.json` (box, pin, status, order, `attachments`, footer
 | `TitleField.swift` | Click-to-rename title in the toolbar; `RenameField` (AppKit, focus reaches into the toolbar). |
 | `EditorTheme.swift` | 13 themes, each a distinct colour family; a theme colours the whole window, Settings and the lightbox. |
 | `WindowLook.swift` | Glass sidebar backdrop, `themedForeground`. |
-| `SettingsView.swift`, `AboutView.swift` | Tabs General / Editor / Themes / About. Window: notes list layout, glass sidebar (on), see-through window (on, 95 %). |
+| `SettingsView.swift`, `AboutView.swift` | Tabs General / Editor / Themes / About. Window: notes list layout, glass sidebar (on), see-through window (on, 95 %). Text Files: make the app the default for .txt. |
 | `Compat.swift` | Glass helpers with macOS 15 fallbacks; `FooterMetrics` (corner buttons 64×32, footer height 32). |
-| `RubbishNotesApp.swift` | App, menus, `Prefs` keys, notifications, `TextFinder`. |
+| `RubbishNotesApp.swift` | App, menus (New Sub-note ⌥⌘N, View › Collapse/Expand All Sub-notes; Save/Save a Copy/Print go to a plain window first), `AppDelegate` (opened files, notes window kept closed on file launches, Dock reopen), `Prefs` keys, notifications, `TextFinder`. |
 
 ## Things learned the hard way
 
@@ -111,3 +147,14 @@ plus `notes-index.json` (box, pin, status, order, `attachments`, footer
 - Toolbar menus drop item icons unless each item has `.labelStyle(.titleAndIcon)`.
 - A method named `open` on `NoteStore` clashes with Darwin's `open()` (file watching).
 - Popovers can flip downward; footer panels are drawn in the note area instead.
+- Under SwiftUI, `NSAppleEventManager.currentAppleEvent` is nil in
+  `applicationWillFinishLaunching`; tell a file launch by
+  `launchIsDefaultUserInfoKey` in `applicationDidFinishLaunching` (the open
+  event arrives before it).
+- `Info.plist` declares the document type without `NSDocumentClass`, so AppKit
+  never opens untitled documents; `PlainTextDocument` overrides
+  `readableTypes`/`writableTypes` instead.
+- Text changes that skip the undo manager (accessibility, services) don't mark
+  an NSDocument edited; the plain window calls `updateChangeCount` itself.
+- Toolbar/menu labels picked with `cond ? "A" : "B"` must go through `L()`:
+  the ternary makes a `String`, which SwiftUI doesn't translate.

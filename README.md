@@ -6,7 +6,9 @@ A plain-text notes app for macOS. Every note is a real `.txt` file, saved a mome
 
 - **Note blocks** inside the text for longer passages: name them, fold them to one line, drag them between lines, copy or export them (plain text, PDF, Markdown).
 - **Images and blocks in the footer**, kept apart from your writing. Images open in the app's own lightbox.
-- **Status** per note (open, in progress, done), pinning, Archive and Trash, drag to reorder, and export as PDF or text (zipped with the images) or as Markdown (the text first, then each note block and footer block as its own section).
+- **Sub-notes** under any note (right click › New Sub-note, ⌥⌘N): each one is still its own `.txt` file, listed under its parent with a chevron to hide them, plus one control to collapse or expand them all. They move with their parent to the Archive or the Trash and back, and search finds them.
+- **Status** per note (open, in progress, done), pinning, Archive and Trash, drag to reorder, and export as PDF or text (zipped with the images) or as Markdown (the text first, then each note block and footer block as its own section; a note with sub-notes can go as a .zip with one `.md` per note).
+- **Your .txt files, plainly:** Rubbish Notes can be the Mac's default app for `.txt` (Settings › General › Text Files). A text file opened from the Finder gets a plain window of its own, no tabs or sidebar, saved back to the same file, and is never added to your notes.
 - **Sidebar or tabs:** a vertical list, or tabs across the top with an All Notes panel for when there are many.
 - **Themes that colour the whole window**, a glass sidebar and adjustable window opacity. Six languages.
 
@@ -50,7 +52,7 @@ The app icon is the layered macOS 26 icon `Assets/AppIcon.icon` (open it in Xcod
 The app runs in the App Sandbox, so everything lives in its container, `~/Library/Containers/local.rubbishnotes.app/Data/Library/Application Support/Rubbish Notes/`:
 
 - `Notes/` (Inbox), `Archive/` and `Trash/`: one `.txt` file per note. Moving a note between Inbox, Archive and Trash moves its file.
-- `notes-index.json`: box, pinning and dates.
+- `notes-index.json`: box, pinning and dates, and which note a sub-note belongs to. A sub-note's file sits next to its parent's; if the index is lost, sub-notes simply become notes.
 
 Notes from before the sandbox (in `~/Library/Application Support/Rubbish Notes/`) are moved into the container by macOS on the first sandboxed launch, as listed in `Support/container-migration.plist`.
 
@@ -65,6 +67,7 @@ Trashed notes can be restored until you choose Empty Trash, which deletes them p
 - App Sandbox (`Support/RubbishNotes.entitlements`): access to its own container, plus files you choose in Open/Save panels or drop on the window, and printing. No network access.
 - Hardened runtime, ad-hoc signed by `scripts/build-app.sh`.
 - Outside edits are never overwritten: if a note's file changed since the app last read or wrote it, the app keeps the other version and saves its own text as "<name> (conflict).txt".
+- Text files opened from the Finder (double-click, Open With, the Dock icon) are reached through the access macOS grants for files you open; no extra entitlement. They are edited in place, up to 20 MB, in the encoding they came in.
 - Imports: plain text, Markdown, RTF and HTML only, up to 20 MB. File names are cleaned of path separators, control and direction-override characters and leading dots.
 
 ## Design
@@ -86,7 +89,9 @@ Focus Mode (the bolt in the toolbar, ⇧⌘F) hides the sidebar, the Inbox/Archi
 | Keys | Action |
 | --- | --- |
 | ⌘N | New note |
+| ⌥⌘N | New sub-note under the open note |
 | ⌘O | Open a file as a note (text, Markdown, RTF, HTML) |
+| ⌘S | Save now (notes save themselves; in a plain text window, saves the file) |
 | ⇧⌘S | Save a copy elsewhere |
 | ⌘F / ⌥⌘F | Find / find and replace in the note |
 | ⌘G / ⇧⌘G | Next / previous match |
@@ -102,13 +107,17 @@ Focus Mode (the bolt in the toolbar, ⇧⌘F) hides the sidebar, the Inbox/Archi
 
 | File | What it does |
 | --- | --- |
-| `NoteStore.swift` | Notes on disk: index, 0.6 s autosave, folder watcher, search, rename, pin, trash, import/export |
-| `NoteStore+Organize.swift` | Status, drag order, image attachments, thumbnail cache |
+| `NoteStore.swift` | Notes on disk: index, 0.6 s autosave, folder watcher, search, rename, pin, trash |
+| `NoteStore+Subnotes.swift` | Sub-notes: links, collapse state, the nested list and its drag order |
+| `NoteStore+Files.swift` | Import, Save a Copy, finding a note by its file |
+| `NoteStore+Organize.swift` | Status, drag order, export entry point, footer blocks, image attachments, thumbnail cache |
+| `NoteExport.swift`, `SubnoteExport.swift` | PDF, text and Markdown export; Markdown with sub-notes as a .zip |
+| `PlainTextDocument.swift`, `FileOpening.swift` | Plain text windows for outside files, routing of opened files, default .txt app |
 | `NoteFooter.swift` | Status dots, sidebar status mark, attachment thumbnails |
 | `Compat.swift` | Glass on macOS 26+, materials and bordered buttons on macOS 15 |
 | `Editor.swift` | Plain-text `NSTextView`: system find bar, optional ruled lines, paste without formatting |
 | `MainView.swift` | Split view, toolbar, glass status capsule and notices |
-| `SidebarView.swift` | Notes list per box, hover rename button, context menus, swipe actions, box switcher, Empty Trash |
+| `SidebarView.swift`, `SubnoteViews.swift` | Notes list per box with sub-notes, context menus, swipe actions, box switcher, Empty Trash; sub-note chevrons and the collapse-all chip |
 | `SettingsView.swift` | General (appearance, app icon), Editor, Themes and About tabs |
 | `AboutView.swift` | About tab (version, witchmymac.com link) and the open-source licenses sheet |
 | `Localization.swift` | `L()` lookups and the in-app language choice |
