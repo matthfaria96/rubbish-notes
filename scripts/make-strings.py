@@ -210,6 +210,14 @@ T = [
 ("“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note.", "“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note.", "“%@” tem %ld sub-notas. Incluindo, você recebe um .zip com um arquivo Markdown por nota.", "«%@» tiene %ld subnotas. Si las incluyes, obtendrás un .zip con un archivo Markdown por nota.", "« %@ » a %ld sous-notes. En les incluant, vous obtenez un .zip avec un fichier Markdown par note.", "„%@“ hat %ld Unternotizen. Mit ihnen erhältst du ein .zip mit einer Markdown-Datei pro Notiz.", "“%@” ha %ld sottonote. Includendole, ottieni un .zip con un file Markdown per nota."),
 ("Include Sub-notes", "Include Sub-notes", "Incluir Sub-notas", "Incluir subnotas", "Inclure les sous-notes", "Unternotizen einschließen", "Includi sottonote"),
 ("This Note Only", "This Note Only", "Só Esta Nota", "Solo esta nota", "Cette note seulement", "Nur diese Notiz", "Solo questa nota"),
+# Plain text files
+("Save", "Save", "Salvar", "Guardar", "Enregistrer", "Sichern", "Salva"),
+("Plain text", "Plain text", "Texto simples", "Texto sin formato", "Texte brut", "Reiner Text", "Testo semplice"),
+("Text Files", "Text Files", "Arquivos de Texto", "Archivos de texto", "Fichiers texte", "Textdateien", "File di testo"),
+("Make Default", "Make Default", "Tornar Padrão", "Usar por omisión", "Définir par défaut", "Als Standard festlegen", "Imposta come predefinita"),
+("Open .txt files with Rubbish Notes", "Open .txt files with Rubbish Notes", "Abrir arquivos .txt com o Rubbish Notes", "Abrir archivos .txt con Rubbish Notes", "Ouvrir les fichiers .txt avec Rubbish Notes", ".txt-Dateien mit Rubbish Notes öffnen", "Apri i file .txt con Rubbish Notes"),
+("Now they open in %@.", "Now they open in %@.", "Atualmente abrem com %@.", "Ahora se abren con %@.", "Ils s’ouvrent actuellement dans %@.", "Derzeit öffnen sie sich in %@.", "Ora si aprono con %@."),
+("They open in a plain window of their own, saved back to the same file, and aren’t added to your notes.", "They open in a plain window of their own, saved back to the same file, and aren’t added to your notes.", "Eles abrem numa janela simples só deles, salvam no mesmo arquivo e não entram nas suas notas.", "Se abren en una ventana sencilla propia, se guardan en el mismo archivo y no se añaden a tus notas.", "Ils s’ouvrent dans une fenêtre simple, sont enregistrés dans le même fichier et ne sont pas ajoutés à vos notes.", "Sie öffnen sich in einem eigenen, schlichten Fenster, werden in dieselbe Datei gesichert und nicht zu deinen Notizen hinzugefügt.", "Si aprono in una finestra semplice tutta loro, vengono salvati nello stesso file e non entrano nelle tue note."),
 # Theme sample
 ("Shopping list", "Shopping list", "Lista de compras", "Lista de la compra", "Liste de courses", "Einkaufsliste", "Lista della spesa"),
 ("written on ", "written on ", "escrito no ", "escrito en la ", "écrit sur un ", "geschrieben auf ", "scritto su un "),

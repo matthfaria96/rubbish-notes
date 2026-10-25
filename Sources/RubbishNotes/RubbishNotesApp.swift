@@ -32,8 +32,26 @@ extension Notification.Name {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Set when a file opened at launch needs the notes window (a note, an import).
+    private var filesNeedNotes = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         IconStyle.current.applyToDock()
+        // Launched to open files (Finder double-click): the notes window that
+        // SwiftUI puts up stays closed unless one of the files needs it.
+        let defaultLaunch = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
+        guard !defaultLaunch else { return }
+        DispatchQueue.main.async { [self] in
+            guard !filesNeedNotes, FileOpening.hasPlainWindows else { return }
+            FileOpening.notesWindows.forEach { $0.close() }
+        }
+    }
+
+    /// Clicking the Dock icon while only plain text windows are open brings the notes back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard flag, FileOpening.notesWindows.isEmpty else { return true }
+        FileOpening.showMainWindow?()
+        return false
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -43,8 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NoteStore.shared.savePendingIndex()
     }
 
+    /// Finder double-click, Open With, a drop on the Dock icon: outside text
+    /// files open in their own plain window; library notes open as notes.
     func application(_ application: NSApplication, open urls: [URL]) {
-        NoteStore.shared.importFiles(urls)
+        if FileOpening.open(urls) { filesNeedNotes = true }
     }
 }
 
@@ -81,17 +101,24 @@ struct RubbishNotesApp: App {
                 Button("Open…", systemImage: "doc") { store.importWithPanel() }
                     .keyboardShortcut("o")
             }
+            // A plain text window (NSDocument) answers these first; otherwise they act on the open note.
             CommandGroup(replacing: .saveItem) {
-                Button("Save a Copy…", systemImage: "square.and.arrow.down") { store.exportActiveWithPanel() }
-                    .keyboardShortcut("s", modifiers: [.command, .shift])
-                    .disabled(store.activeID == nil)
+                Button("Save", systemImage: "square.and.arrow.down") {
+                    if !NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil) { store.flushNow() }
+                }
+                .keyboardShortcut("s")
+                Button("Save a Copy…", systemImage: "square.and.arrow.down.on.square") {
+                    if !NSApp.sendAction(#selector(NSDocument.saveTo(_:)), to: nil, from: nil) { store.exportActiveWithPanel() }
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .printItem) {
                 Button("Print…", systemImage: "printer") {
+                    guard !NSApp.sendAction(#selector(NSDocument.printDocument(_:)), to: nil, from: nil),
+                          store.activeID != nil else { return }
                     Printing.print(store.text, font: FontChoice.font(fontName, size: fontSize))
                 }
                 .keyboardShortcut("p")
-                .disabled(store.activeID == nil)
             }
             CommandMenu("Note") {
                 NoteCommands(store: store)

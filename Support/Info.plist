@@ -6,6 +6,25 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Rubbish Notes</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<!-- Opens plain text from the Finder in its own window (PlainTextDocument).
+		     Alternate: listed in Open With without taking over .txt files;
+		     Settings › General › Text Files makes it the default when asked.
+		     No NSDocumentClass, so AppKit never opens untitled documents. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Plain Text</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.plain-text</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>RubbishNotes</string>
 	<key>CFBundleIconFile</key>

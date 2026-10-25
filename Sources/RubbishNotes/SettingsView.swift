@@ -101,6 +101,7 @@ private struct GeneralSettings: View {
                     }
                 }
             }
+            TextFilesSection()
             Section("Storage") {
                 LabeledContent {
                     Button("Show in Finder") {
@@ -173,6 +174,44 @@ private struct EditorSettings: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Make Rubbish Notes the app that opens .txt files. They open in a plain
+/// window of their own and are never added to the notes.
+private struct TextFilesSection: View {
+    @StateObject private var isDefault = ViewState(DefaultTextApp.isDefault)
+    @StateObject private var current = ViewState(DefaultTextApp.currentName)
+
+    var body: some View {
+        Section("Text Files") {
+            LabeledContent {
+                if isDefault.value {
+                    Label("Default", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.tint)
+                } else {
+                    Button("Make Default") {
+                        DefaultTextApp.makeDefault { _ in refresh() }
+                    }
+                }
+            } label: {
+                Text("Open .txt files with Rubbish Notes")
+                if !isDefault.value, let name = current.value {
+                    Text(L("Now they open in %@.", name))
+                }
+            }
+            Text("They open in a plain window of their own, saved back to the same file, and aren’t added to your notes.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        // The choice can also change in the Finder's Get Info.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
+    }
+
+    private func refresh() {
+        isDefault.value = DefaultTextApp.isDefault
+        current.value = DefaultTextApp.currentName
     }
 }
 

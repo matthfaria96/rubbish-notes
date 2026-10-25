@@ -31,6 +31,7 @@ struct MainView: View {
     @StateObject private var lightbox = ViewState<URL?>(nil)
     /// Images waiting for the delete confirmation.
     @StateObject private var pendingDelete = ViewState<[URL]>([])
+    @Environment(\.openWindow) private var openWindow
 
     private var appearance: AppearanceChoice { AppearanceChoice(rawValue: appearanceRaw) ?? .system }
     private var iconStyle: IconStyle { IconStyle(rawValue: iconStyleRaw) ?? .blue }
@@ -74,6 +75,9 @@ struct MainView: View {
             store.undoNotice = nil
         }
         .onAppear {
+            // Lets a note opened from the Finder bring this window back after it was closed.
+            let open = openWindow
+            FileOpening.showMainWindow = { open(id: "main") }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 NotificationCenter.default.post(name: .focusEditor, object: nil)
             }

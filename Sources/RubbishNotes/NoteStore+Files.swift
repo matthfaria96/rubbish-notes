@@ -49,4 +49,20 @@ extension NoteStore {
         do { try text.write(to: dest, atomically: true, encoding: .utf8) } catch { NSSound.beep() }
     }
 
+    /// The note whose .txt file this is, when the file sits in the notes folders
+    /// (Notes, Archive or Trash). Files anywhere else are not notes.
+    func libraryNote(at url: URL) -> NoteEntry? {
+        let file = url.standardizedFileURL.resolvingSymlinksInPath()
+        let folder = file.deletingLastPathComponent().path
+        guard let box = NoteBox.allCases.first(where: {
+            dirs[$0]!.standardizedFileURL.resolvingSymlinksInPath().path == folder
+        }) else { return nil }
+        return notes.first { $0.location == box && $0.fileName == file.lastPathComponent }
+    }
+
+    /// Whether the file lives anywhere inside the app's own notes folder.
+    func isInLibrary(_ url: URL) -> Bool {
+        let root = rootDir.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+        return url.standardizedFileURL.resolvingSymlinksInPath().path.hasPrefix(root)
+    }
 }

@@ -200,6 +200,13 @@
 "“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note." = "„%@“ hat %ld Unternotizen. Mit ihnen erhältst du ein .zip mit einer Markdown-Datei pro Notiz.";
 "Include Sub-notes" = "Unternotizen einschließen";
 "This Note Only" = "Nur diese Notiz";
+"Save" = "Sichern";
+"Plain text" = "Reiner Text";
+"Text Files" = "Textdateien";
+"Make Default" = "Als Standard festlegen";
+"Open .txt files with Rubbish Notes" = ".txt-Dateien mit Rubbish Notes öffnen";
+"Now they open in %@." = "Derzeit öffnen sie sich in %@.";
+"They open in a plain window of their own, saved back to the same file, and aren’t added to your notes." = "Sie öffnen sich in einem eigenen, schlichten Fenster, werden in dieselbe Datei gesichert und nicht zu deinen Notizen hinzugefügt.";
 "Shopping list" = "Einkaufsliste";
 "written on " = "geschrieben auf ";
 "rubbish," = "Abfall,";

@@ -200,6 +200,13 @@
 "“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note." = "“%@” has %ld sub-notes. With them, you get a .zip with one Markdown file per note.";
 "Include Sub-notes" = "Include Sub-notes";
 "This Note Only" = "This Note Only";
+"Save" = "Save";
+"Plain text" = "Plain text";
+"Text Files" = "Text Files";
+"Make Default" = "Make Default";
+"Open .txt files with Rubbish Notes" = "Open .txt files with Rubbish Notes";
+"Now they open in %@." = "Now they open in %@.";
+"They open in a plain window of their own, saved back to the same file, and aren’t added to your notes." = "They open in a plain window of their own, saved back to the same file, and aren’t added to your notes.";
 "Shopping list" = "Shopping list";
 "written on " = "written on ";
 "rubbish," = "rubbish,";
