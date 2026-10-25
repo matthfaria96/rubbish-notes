@@ -73,6 +73,11 @@ struct RubbishNotesApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Note", systemImage: "square.and.pencil") { store.newNote() }
                     .keyboardShortcut("n")
+                Button("New Sub-note", systemImage: "note.text.badge.plus") {
+                    if let id = store.activeID { store.newSubnote(under: id) }
+                }
+                .keyboardShortcut("n", modifiers: [.command, .option])
+                .disabled(!store.canAddSubnote(to: store.activeID))
                 Button("Open…", systemImage: "doc") { store.importWithPanel() }
                     .keyboardShortcut("o")
             }
@@ -99,6 +104,8 @@ struct RubbishNotesApp: App {
                 Divider()
             }
             CommandGroup(after: .sidebar) {
+                Divider()
+                SubnoteCommands(store: store)
                 Divider()
                 Button(L(focusMode ? "Exit Focus Mode" : "Focus Mode"), systemImage: focusMode ? "bolt.fill" : "bolt") {
                     focusMode.toggle()
@@ -153,6 +160,20 @@ enum Printing {
     }
 }
 
+/// View › Collapse / Expand All Sub-notes, for the box on screen.
+private struct SubnoteCommands: View {
+    @ObservedObject var store: NoteStore
+
+    var body: some View {
+        let expanded = store.anySubnotesExpanded(in: store.box)
+        Button(L(expanded ? "Collapse All Sub-notes" : "Expand All Sub-notes"),
+               systemImage: expanded ? "chevron.up" : "chevron.down") {
+            store.setAllSubnotesCollapsed(expanded, in: store.box)
+        }
+        .disabled(store.parentIDs(in: store.box).isEmpty)
+    }
+}
+
 /// The menu-bar Note menu: what can be done to the open note in its box.
 private struct NoteCommands: View {
     @ObservedObject var store: NoteStore
@@ -164,12 +185,14 @@ private struct NoteCommands: View {
                 Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }
                 Divider()
                 Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) {
-                    store.deletePermanently(note.id)
+                    store.requestDeletePermanently(note.id)
                 }
             case .inbox, .archive:
                 if note.location == .inbox {
-                    Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
-                        store.togglePin(note.id)
+                    if !store.isNested(note.id) {
+                        Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
+                            store.togglePin(note.id)
+                        }
                     }
                     Button("Archive", systemImage: "archivebox") { store.archive(note.id) }
                 } else {

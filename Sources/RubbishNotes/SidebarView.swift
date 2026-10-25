@@ -18,21 +18,26 @@ struct SidebarView: View {
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
 
     var body: some View {
-        let pinned = store.pinnedNotes(in: box).filter { store.matches($0, query: query) }
-        let others = store.listNotes(in: box).filter { store.matches($0, query: query) }
+        // Each note followed by its sub-notes (unless hidden); search looks inside sub-notes too.
+        let pinned = store.outline(store.pinnedNotes(in: box), query: query)
+        let others = store.outline(store.listNotes(in: box), query: query)
         // The list ends above the box switcher instead of scrolling under it.
         VStack(spacing: 0) {
         List(selection: selection) {
             if !pinned.isEmpty {
-                Section("Pinned") {
+                Section {
                     ForEach(pinned) { row($0) }
-                        .onMove(perform: query.isEmpty ? { store.reorderPinned(pinned.map(\.id), from: $0, to: $1) } : nil)
+                        .onMove(perform: query.isEmpty ? { move(pinned, from: $0, to: $1, pinned: true) } : nil)
+                } header: {
+                    NotesSectionHeader(title: L("Pinned"), box: box, showsToggle: true)
                 }
             }
             if !others.isEmpty {
-                Section(sectionTitle) {
+                Section {
                     ForEach(others) { row($0) }
-                        .onMove(perform: canReorder ? { store.reorder(others.map(\.id), from: $0, to: $1) } : nil)
+                        .onMove(perform: canReorder ? { move(others, from: $0, to: $1, pinned: false) } : nil)
+                } header: {
+                    NotesSectionHeader(title: sectionTitle, box: box, showsToggle: pinned.isEmpty)
                 }
             }
         }
@@ -83,6 +88,17 @@ struct SidebarView: View {
                     Label("New Note", systemImage: "square.and.pencil")
                 }
                 .help("New Note (⌘N)")
+    }
+
+    /// Rows are notes and their sub-notes; only notes move, taking their sub-notes along.
+    private func move(_ items: [NoteListItem], from source: IndexSet, to destination: Int, pinned: Bool) {
+        guard let step = NoteStore.outlineMove(items, from: source, to: destination) else { return }
+        let tops = items.filter { !$0.isSubnote }.map(\.id)
+        if pinned {
+            store.reorderPinned(tops, from: IndexSet(integer: step.from), to: step.to)
+        } else {
+            store.reorder(tops, from: IndexSet(integer: step.from), to: step.to)
+        }
     }
 
     /// Dragging sets the order of the whole box, so not while searching or in the Trash.
@@ -190,14 +206,19 @@ struct SidebarView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func row(_ note: NoteEntry) -> some View {
-        NoteRow(
+    private func row(_ item: NoteListItem) -> some View {
+        let note = item.note
+        return NoteRow(
             note: note,
             preview: store.previews[note.id] ?? "",
             modified: note.location == .trash ? note.trashedAt : store.modified[note.id],
-            renamingID: $renaming.value
+            renamingID: $renaming.value,
+            isSubnote: item.isSubnote,
+            subnoteCount: item.subnoteCount,
+            collapsed: item.collapsed
         )
         .tag(note.id)
+        .moveDisabled(item.isSubnote)
     }
 }
 
@@ -207,6 +228,11 @@ struct NoteRow: View {
     let preview: String
     let modified: Date?
     @Binding var renamingID: UUID?
+    /// Listed under its parent: indented, a little lighter.
+    var isSubnote = false
+    /// On a parent: its sub-notes, and whether they are hidden.
+    var subnoteCount = 0
+    var collapsed = false
     @AppStorage(Prefs.sidebarStatus) private var sidebarStatus = true
 
     var body: some View {
@@ -217,8 +243,14 @@ struct NoteRow: View {
                     RenameField(initial: note.title, onCommit: commitRename, onCancel: { renamingID = nil })
                 } else {
                     Text(note.title)
-                        .font(.body.weight(.semibold))
+                        .font(.body.weight(isSubnote ? .medium : .semibold))
                         .lineLimit(1)
+                }
+                if subnoteCount > 0 {
+                    Spacer(minLength: 4)
+                    SubnoteToggle(count: subnoteCount, collapsed: collapsed) {
+                        withAnimation(.smooth(duration: 0.25)) { store.toggleSubnotes(note.id) }
+                    }
                 }
             }
             HStack(spacing: 6) {
@@ -233,6 +265,7 @@ struct NoteRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 3)
+        .subnoteIndent(isSubnote)
         .contentShape(Rectangle())
         .contextMenu {
             NoteContextMenu(note: note) { renamingID = note.id }.labelStyle(.titleAndIcon)
@@ -252,10 +285,12 @@ struct NoteRow: View {
     private var leadingSwipe: some View {
         switch note.location {
         case .inbox:
-            Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
-                store.togglePin(note.id)
+            if !isSubnote {
+                Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
+                    store.togglePin(note.id)
+                }
+                .tint(.orange)
             }
-            .tint(.orange)
         case .archive, .trash:
             Button("Restore", systemImage: "tray.and.arrow.up") { store.restore(note.id) }
                 .tint(.blue)
@@ -272,7 +307,7 @@ struct NoteRow: View {
         case .archive:
             Button("Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
         case .trash:
-            Button("Delete", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
+            Button("Delete", systemImage: "trash.slash", role: .destructive) { store.requestDeletePermanently(note.id) }
         }
     }
 
@@ -335,9 +370,12 @@ struct NoteContextMenu: View {
         switch note.location {
         case .inbox:
             renameItem
+            subnoteItems
             Divider()
-            Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
-                store.togglePin(note.id)
+            if !store.isNested(note.id) {
+                Button(L(note.pinned ? "Unpin" : "Pin"), systemImage: note.pinned ? "pin.slash" : "pin") {
+                    store.togglePin(note.id)
+                }
             }
             statusMenu
             ExportMenu(noteID: note.id)
@@ -347,6 +385,7 @@ struct NoteContextMenu: View {
             Button("Move to Trash", systemImage: "trash", role: .destructive) { store.trash(note.id) }
         case .archive:
             renameItem
+            subnoteItems
             Divider()
             Button("Unarchive", systemImage: "tray") { store.restore(note.id) }
             ExportMenu(noteID: note.id)
@@ -356,7 +395,21 @@ struct NoteContextMenu: View {
         case .trash:
             Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }
             Divider()
-            Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) { store.deletePermanently(note.id) }
+            Button("Delete Permanently", systemImage: "trash.slash", role: .destructive) { store.requestDeletePermanently(note.id) }
+        }
+    }
+
+    /// New Sub-note on notes that can take one; Show/Hide on notes that have some.
+    @ViewBuilder
+    private var subnoteItems: some View {
+        if store.canAddSubnote(to: note.id) {
+            Button("New Sub-note", systemImage: "note.text.badge.plus") { store.newSubnote(under: note.id) }
+        }
+        if !store.subnotes(of: note.id).isEmpty {
+            let collapsed = store.subnotesCollapsed(note.id)
+            Button(L(collapsed ? "Show Sub-notes" : "Hide Sub-notes"), systemImage: collapsed ? "chevron.down" : "chevron.up") {
+                withAnimation(.smooth(duration: 0.25)) { store.toggleSubnotes(note.id) }
+            }
         }
     }
 

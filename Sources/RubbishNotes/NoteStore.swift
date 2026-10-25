@@ -62,6 +62,12 @@ struct NoteEntry: Codable, Identifiable, Equatable {
     var attachments: [String]?
     /// Long texts kept apart from the note itself, oldest first.
     var blocks: [String]?
+    /// Set on a sub-note: the note it sits under. Its file stays a plain .txt
+    /// in the same folder; the link lives only here, by id, so renaming the
+    /// parent doesn't break it.
+    var parent: UUID?
+    /// On a parent: its sub-notes are hidden in the lists.
+    var subnotesCollapsed: Bool?
 
     var title: String { (fileName as NSString).deletingPathExtension }
     var location: NoteBox { box ?? .inbox }
@@ -90,6 +96,8 @@ final class NoteStore: ObservableObject {
     @Published var notice: String?
     /// "Moved to Trash"-style message that comes with an Undo button.
     @Published var undoNotice: String?
+    /// A trashed parent waiting for "Delete Permanently" to be confirmed (its sub-notes go too).
+    @Published var pendingPermanentDelete: UUID?
     /// The window's undo manager, so Edit › Undo also covers archiving and trashing.
     weak var undoManager: UndoManager?
     /// Set by the editor: whether its find bar is showing.
@@ -98,7 +106,7 @@ final class NoteStore: ObservableObject {
     private var contents: [UUID: String] = [:]
 
     let rootDir: URL
-    private let dirs: [NoteBox: URL]
+    let dirs: [NoteBox: URL]
     private let indexURL: URL
     private var dirty = false
     private var pendingFlush: DispatchWorkItem?
@@ -108,7 +116,7 @@ final class NoteStore: ObservableObject {
     /// Watches the open note's file: folder events miss in-place edits.
     private var fileWatcher: DispatchSourceFileSystemObject?
     private var watchDebounce: DispatchWorkItem?
-    private var lastSelfWrite = Date.distantPast
+    var lastSelfWrite = Date.distantPast
     /// Modification date of the open note's file when we last read or wrote it.
     private var diskStamp: Date?
     private var countWork: DispatchWorkItem?
@@ -155,16 +163,19 @@ final class NoteStore: ObservableObject {
     var pinnedNotes: [NoteEntry] { pinnedNotes(in: box) }
     var listNotes: [NoteEntry] { listNotes(in: box) }
 
+    /// Top-level notes only: sub-notes are listed under their parent (`outline`).
     func pinnedNotes(in box: NoteBox) -> [NoteEntry] {
         guard box == .inbox else { return [] }
-        return notes.filter { $0.location == .inbox && $0.pinned }
+        let nested = nestedIDs
+        return notes.filter { $0.location == .inbox && $0.pinned && !nested.contains($0.id) }
             .sorted { ($0.pinnedAt ?? .distantPast) < ($1.pinnedAt ?? .distantPast) }
     }
 
     /// The rest of the current box. Order never depends on opening a note:
     /// creation date, newest first; the Trash shows the latest deletions first.
     func listNotes(in box: NoteBox) -> [NoteEntry] {
-        let inBox = notes.filter { $0.location == box && !(box == .inbox && $0.pinned) }
+        let nested = nestedIDs
+        let inBox = notes.filter { $0.location == box && !(box == .inbox && $0.pinned) && !nested.contains($0.id) }
         if box == .trash {
             return inBox.sorted { ($0.trashedAt ?? .distantPast) > ($1.trashedAt ?? .distantPast) }
         }
@@ -197,7 +208,8 @@ final class NoteStore: ObservableObject {
         saveIndex()
     }
 
-    var visible: [NoteEntry] { pinnedNotes + listNotes }
+    /// Everything in the current box in list order, each sub-note after its parent.
+    var visible: [NoteEntry] { (pinnedNotes + listNotes).flatMap { [$0] + subnotes(of: $0.id) } }
 
     var active: NoteEntry? { notes.first { $0.id == activeID } }
 
@@ -352,22 +364,24 @@ final class NoteStore: ObservableObject {
 
     // MARK: Notes
 
-    /// New notes always go to the inbox, which the sidebar switches to.
+    /// New notes go to the inbox, which the sidebar switches to. Sub-notes
+    /// (`parent`) go to their parent's box instead (`newSubnote`).
     @discardableResult
-    func newNote(content: String = "", name: String? = nil) -> UUID? {
+    func newNote(content: String = "", name: String? = nil, in destination: NoteBox = .inbox, parent: UUID? = nil) -> UUID? {
         flushNow()
-        let fileName = uniqueFileName(base: name ?? "untitled", in: .inbox)
+        let fileName = uniqueFileName(base: name ?? "untitled", in: destination)
         lastSelfWrite = Date()
         do {
-            try content.write(to: dirs[.inbox]!.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
+            try content.write(to: dirs[destination]!.appendingPathComponent(fileName), atomically: true, encoding: .utf8)
         } catch {
             NSSound.beep()
             return nil
         }
-        box = .inbox
-        let entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
-                              lastOpened: Date(), createdAt: Date(), box: .inbox, autoNamed: name == nil,
+        box = destination
+        var entry = NoteEntry(id: UUID(), fileName: fileName, pinned: false, pinnedAt: nil,
+                              lastOpened: Date(), createdAt: Date(), box: destination, autoNamed: name == nil,
                               status: .inProgress)
+        entry.parent = parent
         notes.append(entry)
         previews[entry.id] = Self.preview(of: content)
         contents[entry.id] = content
@@ -419,13 +433,15 @@ final class NoteStore: ObservableObject {
 
     func trash(_ id: UUID) { move(id, to: .trash) }
 
-    /// Removes a trashed note for good.
+    /// Removes a trashed note for good, with the sub-notes trashed along with it.
     func deletePermanently(_ id: UUID) {
-        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].location == .trash else { return }
-        lastSelfWrite = Date()
-        try? FileManager.default.removeItem(at: url(for: notes[i]))
-        removeAttachmentFolder(of: id)
-        forget(id)
+        guard let note = notes.first(where: { $0.id == id }), note.location == .trash else { return }
+        for doomed in [note] + subnotes(of: id) {
+            lastSelfWrite = Date()
+            try? FileManager.default.removeItem(at: url(for: doomed))
+            removeAttachmentFolder(of: doomed.id)
+            forget(doomed.id)
+        }
     }
 
     func emptyTrash() {
@@ -471,19 +487,49 @@ final class NoteStore: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([url(for: note)])
     }
 
+    /// Moves a note, and the sub-notes shown under it, to another box.
     private func move(_ id: UUID, to destination: NoteBox) {
         guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].location != destination else { return }
         let listBefore = visible.map(\.id)
-        if id == activeID { flushNow() }
+        let children = subnotes(of: id).map(\.id)
+        let moving = [id] + children
+        if let active = activeID, moving.contains(active) { flushNow() }
+        let previous = (box: notes[i].location, pinned: notes[i].pinned, pinnedAt: notes[i].pinnedAt)
+        guard relocate(id, to: destination) else {
+            NSSound.beep()
+            return
+        }
+        let carried = children.filter { relocate($0, to: destination) }.count
+        saveIndex()
+        let replaying = (undoManager?.isUndoing ?? false) || (undoManager?.isRedoing ?? false)
+        undoManager?.registerUndo(withTarget: self) { store in
+            store.moveBack(id, to: previous.box, pinned: previous.pinned, pinnedAt: previous.pinnedAt)
+        }
+        switch destination {
+        case .trash:
+            undoManager?.setActionName(L("Move to Trash"))
+            if !replaying { undoNotice = carried == 0 ? L("Moved to Trash") : L("Moved to Trash with %ld sub-notes", carried) }
+        case .archive:
+            undoManager?.setActionName(L("Archive"))
+            if !replaying { undoNotice = L("Note archived") }
+        case .inbox:
+            undoManager?.setActionName(L("Move to Inbox"))
+            if !replaying { undoNotice = L("Moved to Inbox") }
+        }
+        if let active = activeID, moving.contains(active) { selectNeighbour(of: active, in: listBefore) }
+    }
+
+    /// Moves one note's file into another box's folder and updates its entry
+    /// (the index is saved by the caller). Returns false when the file can't move.
+    private func relocate(_ id: UUID, to destination: NoteBox) -> Bool {
+        guard let i = notes.firstIndex(where: { $0.id == id }) else { return false }
         let target = uniqueFileName(base: notes[i].title, in: destination)
         lastSelfWrite = Date()
         do {
             try FileManager.default.moveItem(at: url(for: notes[i]), to: dirs[destination]!.appendingPathComponent(target))
         } catch {
-            NSSound.beep()
-            return
+            return false
         }
-        let previous = (box: notes[i].location, pinned: notes[i].pinned, pinnedAt: notes[i].pinnedAt)
         notes[i].fileName = target
         notes[i].box = destination
         notes[i].trashedAt = destination == .trash ? Date() : nil
@@ -493,23 +539,7 @@ final class NoteStore: ObservableObject {
             notes[i].pinned = false
             notes[i].pinnedAt = nil
         }
-        saveIndex()
-        let replaying = (undoManager?.isUndoing ?? false) || (undoManager?.isRedoing ?? false)
-        undoManager?.registerUndo(withTarget: self) { store in
-            store.moveBack(id, to: previous.box, pinned: previous.pinned, pinnedAt: previous.pinnedAt)
-        }
-        switch destination {
-        case .trash:
-            undoManager?.setActionName(L("Move to Trash"))
-            if !replaying { undoNotice = L("Moved to Trash") }
-        case .archive:
-            undoManager?.setActionName(L("Archive"))
-            if !replaying { undoNotice = L("Note archived") }
-        case .inbox:
-            undoManager?.setActionName(L("Move to Inbox"))
-            if !replaying { undoNotice = L("Moved to Inbox") }
-        }
-        if id == activeID { selectNeighbour(of: id, in: listBefore) }
+        return true
     }
 
     /// Undo of a move: the note goes back to its box, pin and all, and opens there.
@@ -533,8 +563,17 @@ final class NoteStore: ObservableObject {
         previews[id] = nil
         contents[id] = nil
         modified[id] = nil
+        releaseOrphans()
         saveIndex()
         if wasActive { selectNeighbour(of: id, in: listBefore) }
+    }
+
+    /// Drops links to parents that no longer exist, so those sub-notes become notes.
+    func releaseOrphans() {
+        let ids = Set(notes.map(\.id))
+        for i in notes.indices {
+            if let parent = notes[i].parent, !ids.contains(parent) { notes[i].parent = nil }
+        }
     }
 
     /// After the open note leaves the list, open the one that took its place.
@@ -546,53 +585,6 @@ final class NoteStore: ObservableObject {
             return
         }
         select(rest[min(index, rest.count - 1)])
-    }
-
-    // MARK: Import and export
-
-    /// Files come in as plain text: RTF and HTML lose their formatting. Legacy
-    /// Word and web-archive files are not parsed, and files over 20 MB are refused.
-    func importFiles(_ urls: [URL]) {
-        // The app's own files (a note dragged back onto the window) are never re-imported.
-        let ownFolders = dirs.values.map { $0.standardizedFileURL.path + "/" }
-        for url in urls where !ownFolders.contains(where: url.standardizedFileURL.path.hasPrefix) {
-            let ext = url.pathExtension.lowercased()
-            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-            guard size <= Self.maxFileBytes else {
-                NSSound.beep()
-                notice = L("“%@” is larger than 20 MB and wasn’t imported.", url.lastPathComponent)
-                continue
-            }
-            var content: String?
-            if ["doc", "docx", "webarchive"].contains(ext) {
-                content = nil
-            } else if ["rtf", "rtfd", "html", "htm"].contains(ext) {
-                content = (try? NSAttributedString(url: url, options: [:], documentAttributes: nil))?.string
-                    .replacingOccurrences(of: "\u{FFFC}", with: "")
-            } else {
-                content = try? String(contentsOf: url, encoding: .utf8)
-            }
-            guard let content else { NSSound.beep(); continue }
-            newNote(content: content, name: url.deletingPathExtension().lastPathComponent)
-        }
-    }
-
-    func importWithPanel() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.plainText, .rtf, .rtfd, .html, UTType("net.daringfireball.markdown") ?? .plainText]
-        if panel.runModal() == .OK { importFiles(panel.urls) }
-    }
-
-    func exportActiveWithPanel() {
-        guard let note = active else { return }
-        flushNow()
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = note.fileName
-        panel.allowedContentTypes = [.plainText]
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
-        do { try text.write(to: dest, atomically: true, encoding: .utf8) } catch { NSSound.beep() }
     }
 
     // MARK: Index and folders
@@ -631,6 +623,8 @@ final class NoteStore: ObservableObject {
                 .filter { $0.pathExtension.lowercased() == "txt" } ?? []
         }
         notes.removeAll { note in !(onDisk[note.location] ?? []).contains { $0.lastPathComponent == note.fileName } }
+        // A parent whose file went away (or was renamed in the Finder) leaves its sub-notes as notes.
+        releaseOrphans()
         for (box, files) in onDisk {
             let known = Set(notes.filter { $0.location == box }.map(\.fileName))
             for file in files where !known.contains(file.lastPathComponent) {
@@ -730,7 +724,7 @@ final class NoteStore: ObservableObject {
 
     // MARK: Helpers
 
-    private func uniqueFileName(base: String, in box: NoteBox) -> String {
+    func uniqueFileName(base: String, in box: NoteBox) -> String {
         let clean = Self.sanitize(base)
         let dir = dirs[box]!
         var candidate = "\(clean).txt"

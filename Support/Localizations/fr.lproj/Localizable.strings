@@ -185,6 +185,16 @@
 "Click to apply" = "Cliquez pour appliquer";
 "Dark and light themes also set the window's look while Appearance is Automatic." = "Les thèmes clairs et sombres modifient aussi la fenêtre lorsque l’apparence est automatique.";
 "Default" = "Par défaut";
+"New Sub-note" = "Nouvelle sous-note";
+"Show Sub-notes" = "Afficher les sous-notes";
+"Hide Sub-notes" = "Masquer les sous-notes";
+"Collapse All Sub-notes" = "Réduire toutes les sous-notes";
+"Expand All Sub-notes" = "Développer toutes les sous-notes";
+"Sub-notes" = "Sous-notes";
+"Moved to Trash with %ld sub-notes" = "Placée dans la corbeille avec %ld sous-notes";
+"Its %ld sub-notes go with it. You can restore them from the Trash later." = "Ses %ld sous-notes l’accompagnent. Vous pourrez les restaurer depuis la corbeille.";
+"Delete this note and its sub-notes?" = "Supprimer cette note et ses sous-notes ?";
+"Its %ld sub-notes will be deleted too. You can’t undo this." = "Ses %ld sous-notes seront aussi supprimées. Action irréversible.";
 "Shopping list" = "Liste de courses";
 "written on " = "écrit sur un ";
 "rubbish," = "déchet,";

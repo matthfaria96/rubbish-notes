@@ -187,7 +187,20 @@ struct MainView: View {
                 confirmTrash.value = nil
             }
         } message: {
-            Text("You can restore it from the Trash later.")
+            let count = confirmTrash.value.map { store.subnotes(of: $0).count } ?? 0
+            Text(count == 0 ? L("You can restore it from the Trash later.")
+                            : L("Its %ld sub-notes go with it. You can restore them from the Trash later.", count))
+        }
+        .confirmationDialog(L("Delete this note and its sub-notes?"), isPresented: Binding(
+            get: { store.pendingPermanentDelete != nil }, set: { if !$0 { store.pendingPermanentDelete = nil } }
+        )) {
+            Button(L("Delete Permanently"), role: .destructive) {
+                if let id = store.pendingPermanentDelete { store.deletePermanently(id) }
+                store.pendingPermanentDelete = nil
+            }
+        } message: {
+            let count = store.pendingPermanentDelete.map { store.subnotes(of: $0).count } ?? 0
+            Text(L("Its %ld sub-notes will be deleted too. You can’t undo this.", count))
         }
         .confirmationDialog(deleteTitle, isPresented: deleteBinding) {
             Button(L("Delete"), role: .destructive) { confirmDelete() }
@@ -251,7 +264,7 @@ struct MainView: View {
                 }
                 .help("Restore to Inbox")
                 Button(role: .destructive) {
-                    store.deletePermanently(note.id)
+                    store.requestDeletePermanently(note.id)
                 } label: {
                     Label("Delete Permanently", systemImage: "trash.slash")
                 }
@@ -277,7 +290,7 @@ struct MainView: View {
                 .help(store.attachmentURLs(of: note.id).isEmpty ? L("Export Note") : L("Export Note with its images (.zip)"))
 
                 Menu {
-                    if note.location == .inbox {
+                    if note.location == .inbox, !store.isNested(note.id) {
                         menuItem(L(note.pinned ? "Unpin" : "Pin"), note.pinned ? "pin.slash" : "pin") {
                             store.togglePin(note.id)
                         }

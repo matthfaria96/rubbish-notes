@@ -23,8 +23,9 @@ struct NoteStrip: View {
     @StateObject private var browsing = ViewState(NoteBox.inbox)
 
     var body: some View {
-        let pinned = store.pinnedNotes.filter { store.matches($0, query: query) }
-        let others = store.listNotes.filter { store.matches($0, query: query) }
+        // Sub-notes follow their parent's tab; the open one stays even when hidden.
+        let pinned = store.outline(store.pinnedNotes, query: query, keep: store.activeID)
+        let others = store.outline(store.listNotes, query: query, keep: store.activeID)
         HStack(spacing: 8) {
             boxMenu
             Divider().frame(height: 18)
@@ -81,7 +82,7 @@ struct NoteStrip: View {
         .help("Show")
     }
 
-    private func tabs(pinned: [NoteEntry], others: [NoteEntry]) -> some View {
+    private func tabs(pinned: [NoteListItem], others: [NoteListItem]) -> some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
@@ -113,30 +114,39 @@ struct NoteStrip: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func tab(_ note: NoteEntry, group: [NoteEntry]) -> some View {
-        NoteTab(
+    @ViewBuilder
+    private func tab(_ item: NoteListItem, group: [NoteListItem]) -> some View {
+        let note = item.note
+        let tab = NoteTab(
             note: note,
             selected: note.id == store.activeID,
             dropBefore: dropTarget.value == note.id,
-            renamingID: $renaming.value
+            renamingID: $renaming.value,
+            item: item
         )
         .id(note.id)
-        .draggable(note.id.uuidString)
-        .dropDestination(for: String.self) { items, _ in
-            guard let dragged = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-            return move(dragged, before: note.id, in: group)
-        } isTargeted: { inside in
-            if inside { dropTarget.value = note.id } else if dropTarget.value == note.id { dropTarget.value = nil }
+        // Sub-notes keep their place after the parent; only notes are dragged.
+        if item.isSubnote {
+            tab
+        } else {
+            tab
+                .draggable(note.id.uuidString)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let dragged = items.first.flatMap(UUID.init(uuidString:)) else { return false }
+                    return move(dragged, before: note.id, in: group)
+                } isTargeted: { inside in
+                    if inside { dropTarget.value = note.id } else if dropTarget.value == note.id { dropTarget.value = nil }
+                }
         }
     }
 
     /// Dropping one tab on another puts it just before that one (same group only).
-    private func move(_ dragged: UUID, before target: UUID, in group: [NoteEntry]) -> Bool {
+    private func move(_ dragged: UUID, before target: UUID, in group: [NoteListItem]) -> Bool {
         dropTarget.value = nil
-        let ids = group.map(\.id)
+        let ids = group.filter { !$0.isSubnote }.map(\.id)
         guard query.isEmpty, store.box != .trash, dragged != target,
               let from = ids.firstIndex(of: dragged), let to = ids.firstIndex(of: target) else { return false }
-        if group.first?.pinned == true {
+        if group.first?.note.pinned == true {
             store.reorderPinned(ids, from: IndexSet(integer: from), to: to)
         } else {
             store.reorder(ids, from: IndexSet(integer: from), to: to)
@@ -177,11 +187,20 @@ struct NoteTab: View {
     /// A dragged tab would land just before this one.
     let dropBefore: Bool
     @Binding var renamingID: UUID?
+    /// Its place in the outline: a sub-note, or a parent with sub-notes.
+    var item: NoteListItem?
     @AppStorage(Prefs.sidebarStatus) private var showStatus = true
     @StateObject private var hovering = ViewState(false)
 
+    private var isSubnote: Bool { item?.isSubnote ?? false }
+
     var body: some View {
         HStack(spacing: 5) {
+            if isSubnote {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tint.opacity(0.7))
+            }
             if showStatus { StatusMark(status: note.currentStatus) }
             if note.pinned {
                 Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary)
@@ -192,10 +211,15 @@ struct NoteTab: View {
             } else {
                 // Long names end in "…" so more tabs fit, above all in small windows.
                 Text(note.title)
-                    .font(.callout.weight(selected ? .semibold : .regular))
+                    .font((isSubnote ? Font.footnote : .callout).weight(selected ? .semibold : .regular))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: 120)
+                    .frame(maxWidth: isSubnote ? 100 : 120)
+            }
+            if let item, item.subnoteCount > 0 {
+                SubnoteToggle(count: item.subnoteCount, collapsed: item.collapsed) {
+                    withAnimation(.smooth(duration: 0.25)) { store.toggleSubnotes(note.id) }
+                }
             }
         }
         .foregroundStyle(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
