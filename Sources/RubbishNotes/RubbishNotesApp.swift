@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         IconStyle.current.applyToDock()
+        AppUpdater.shared.start()
         // Launched to open files (Finder double-click): the notes window that
         // SwiftUI puts up stays closed unless one of the files needs it.
         let defaultLaunch = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
@@ -89,6 +90,10 @@ struct RubbishNotesApp: App {
             SidebarCommands()
             ToolbarCommands()
             TextEditingCommands()
+
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesButton()
+            }
 
             CommandGroup(replacing: .newItem) {
                 Button("New Note", systemImage: "square.and.pencil") { store.newNote() }

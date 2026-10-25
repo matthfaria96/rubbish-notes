@@ -4,9 +4,8 @@ Plain-text notes app for macOS (SwiftUI + AppKit, Swift Package, no Xcode projec
 This file is the state of the project, so a new session doesn't have to read the
 whole codebase. Keep it current when something here changes.
 
-Last updated 2026-10-24. Version **1.1.0** (Markdown export, sub-notes, plain
-text windows for outside .txt files) is built and installed on the owner's Mac
-but **not published**; the only GitHub release is v1.0.0. The project lives on the external disk
+Last updated 2026-10-25. Version **1.1.1** (build 6, in-app updates with Sparkle) is the
+current GitHub release. The project lives on the external disk
 (`/Volumes/MacMiniDev/Moved/VSCode Temp/Rubbish Notes`; `~/Documents/VSCode Temp`
 is a symlink to it).
 
@@ -45,6 +44,22 @@ scripts/build-app.sh --install      # universal app → build/ and /Applications
   4. delete older releases: `gh release delete vOLD -R matthfaria96/rubbish-notes --yes --cleanup-tag`
   5. site: `apps.js` tag/file, `apps.js?v=` in `index.html`, commit, push
 - Build output (`.build/`, `build/`) is disposable; delete it to free space.
+
+## In-app updates (Sparkle 2)
+
+- Sparkle 2.10 via SwiftPM; `AppUpdater.swift` (`start()` in `applicationDidFinishLaunching`,
+  `CheckForUpdatesButton` after About in the app menu and in Settings › About). Test copies
+  (another bundle id) never check unless `RUBBISHNOTES_UPDATES=1`.
+- Feed `https://witchmymac.com/appcast/rubbishnotes.xml` (site repo `appcast/`), key and daily
+  check in `Support/Info.plist`. The full flow is `~/Documents/witchmymac-release/UPDATES.md`.
+- Sandboxed: `SUEnableInstallerLauncherService` + `SUEnableDownloaderService` in Info.plist,
+  the `-spks`/`-spki` mach-lookup exceptions in the entitlements, and `build-app.sh` signs
+  Sparkle's `Downloader.xpc` with `Support/SparkleDownloader.entitlements` (the app itself
+  stays without network access). Sparkle's MIT notice is in the Licenses sheet.
+- Every release: bump `CFBundleVersion` (Sparkle compares it), sign with
+  `~/Documents/witchmymac-release/sign-app.sh "build/Rubbish Notes.app"` before `make-dmg.sh`,
+  then `APP_NAME="Rubbish Notes" make-appcast-item.sh <dmg> <version> <build> 15.0 <url> notes.html`
+  and add the item to the appcast.
 
 ## Testing on the owner's Mac (no VM)
 

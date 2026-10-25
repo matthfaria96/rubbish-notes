@@ -60,6 +60,11 @@ struct AboutSettings: View {
             .controlSize(.regular)
             .padding(.top, 22)
 
+            CheckForUpdatesButton()
+                .compatGlassButtonStyle()
+                .controlSize(.regular)
+                .padding(.top, 10)
+
             Text("Rubbish Notes is free software under the GNU GPL v3.0.", tableName: "About")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
@@ -97,6 +102,38 @@ struct OpenSourceLicensesView: View {
     Full license text: https://www.gnu.org/licenses/gpl-3.0.html
     """
 
+    /// Sparkle (in-app updates) is MIT: its notice has to travel with the app.
+    private let sparkleNotice = """
+    Copyright (c) 2006-2013 Andy Matuschak.
+    Copyright (c) 2009-2013 Elgato Systems GmbH.
+    Copyright (c) 2011-2014 Kornel Lesiński.
+    Copyright (c) 2015-2017 Mayur Pawashe.
+    Copyright (c) 2014 C.W. Betts.
+    Copyright (c) 2014 Petroules Corporation.
+    Copyright (c) 2014 Big Nerd Ranch.
+    All rights reserved.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of \
+    this software and associated documentation files (the "Software"), to deal in \
+    the Software without restriction, including without limitation the rights to \
+    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of \
+    the Software, and to permit persons to whom the Software is furnished to do so, \
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all \
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR \
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS \
+    FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR \
+    COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER \
+    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN \
+    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+    Sparkle also bundles third-party code under its own licenses \
+    (https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE).
+    """
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -119,6 +156,20 @@ struct OpenSourceLicensesView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Text(verbatim: notice)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary.opacity(0.5)))
+                            .padding(.top, 6)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(verbatim: "Sparkle").font(.system(size: 13, weight: .semibold))
+                        Text(verbatim: "MIT License · https://sparkle-project.org")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(verbatim: sparkleNotice)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)

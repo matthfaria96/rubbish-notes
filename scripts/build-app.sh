@@ -29,6 +29,10 @@ if [ -n "$SDK_VERSION" ]; then
         -output "$BUNDLE/Contents/MacOS/RubbishNotes" "$BUNDLE/Contents/MacOS/RubbishNotes"
 fi
 cp Support/Info.plist "$BUNDLE/Contents/Info.plist"
+# Sparkle (in-app updates), embedded with its XPC services and found through the rpath.
+mkdir -p "$BUNDLE/Contents/Frameworks"
+cp -R "$BIN_DIR/Sparkle.framework" "$BUNDLE/Contents/Frameworks/"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$BUNDLE/Contents/MacOS/RubbishNotes" 2>/dev/null || true
 # Moves notes from before the sandbox into the container on first launch.
 cp Support/container-migration.plist "$BUNDLE/Contents/Resources/container-migration.plist"
 # Translations: one <lang>.lproj per language.
@@ -60,6 +64,14 @@ make_icon Assets/LogoRed.png AppIconRed ED0D0D
 
 # Ad-hoc signature with the hardened runtime (blocks DYLD_* injection and
 # unsigned code) and the App Sandbox entitlements.
+# Sparkle's SwiftPM build ships Downloader.xpc without entitlements; sign it with its own
+# (sandbox + network client) so the sandboxed app itself stays offline.
+SPARKLE_XPC="$BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices"
+codesign --force --options runtime --sign - "$SPARKLE_XPC/Installer.xpc"
+codesign --force --options runtime --entitlements Support/SparkleDownloader.entitlements --sign - "$SPARKLE_XPC/Downloader.xpc"
+codesign --force --options runtime --sign - "$BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+codesign --force --options runtime --sign - "$BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+codesign --force --options runtime --sign - "$BUNDLE/Contents/Frameworks/Sparkle.framework"
 codesign --force --options runtime --entitlements Support/RubbishNotes.entitlements --sign - "$BUNDLE"
 echo "Built $BUNDLE"
 

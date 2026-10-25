@@ -47,9 +47,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.0</string>
+	<string>1.1.1</string>
 	<key>CFBundleVersion</key>
-	<string>5</string>
+	<string>6</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
@@ -58,5 +58,20 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Notes worth keeping, written on rubbish.</string>
+	<key>SUFeedURL</key>
+	<string>https://witchmymac.com/appcast/rubbishnotes.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>yhoDaYLDki5BV0c44pefouDhxbliuGqLKxXKXXK1Pb0=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<!-- Sandboxed: Sparkle downloads and installs through its XPC services. -->
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableDownloaderService</key>
+	<true/>
 </dict>
 </plist>

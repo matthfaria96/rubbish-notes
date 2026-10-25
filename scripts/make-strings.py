@@ -126,6 +126,7 @@ T = [
 ("Glass sidebar", "Glass sidebar", "Barra lateral de vidro", "Barra lateral de cristal", "Barre latérale en verre", "Seitenleiste aus Glas", "Barra laterale in vetro"),
 ("See-through window", "See-through window", "Janela translúcida", "Ventana translúcida", "Fenêtre translucide", "Durchscheinendes Fenster", "Finestra traslucida"),
 ("Opacity", "Opacity", "Opacidade", "Opacidad", "Opacité", "Deckkraft", "Opacità"),
+("Check for Updates…", "Check for Updates…", "Verificar Atualizações…", "Buscar actualizaciones…", "Rechercher des mises à jour…", "Nach Updates suchen …", "Controlla aggiornamenti…"),
 ("Licenses", "Licenses", "Licenças", "Licencias", "Licences", "Lizenzen", "Licenze"),
 ("Paper", "Paper", "Papel", "Papel", "Papier", "Papier", "Carta"),
 ("Mint", "Mint", "Menta", "Menta", "Menthe", "Minze", "Menta"),

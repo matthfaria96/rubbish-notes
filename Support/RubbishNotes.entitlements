@@ -11,5 +11,11 @@
     <!-- File > Print. -->
     <key>com.apple.security.print</key>
     <true/>
+    <!-- Sparkle's installer XPC services (in-app updates). -->
+    <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+    <array>
+        <string>local.rubbishnotes.app-spks</string>
+        <string>local.rubbishnotes.app-spki</string>
+    </array>
 </dict>
 </plist>
