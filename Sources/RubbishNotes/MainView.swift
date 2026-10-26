@@ -29,6 +29,8 @@ struct MainView: View {
     @StateObject private var blocksOpen = ViewState(false)
     @StateObject private var imagesHintOpen = ViewState(false)
     @StateObject private var lightbox = ViewState<URL?>(nil)
+    /// The note block shown large, if any.
+    @StateObject private var largeBlock = ViewState<OpenBlock?>(nil)
     /// Images waiting for the delete confirmation.
     @StateObject private var pendingDelete = ViewState<[URL]>([])
     @Environment(\.openWindow) private var openWindow
@@ -178,10 +180,15 @@ struct MainView: View {
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { detailWidth.value = $0 }
         .overlay { lightboxView }
+        .overlay { blockLightboxView }
+        .onReceive(NotificationCenter.default.publisher(for: .showBlockLarge)) { note in
+            withAnimation(ImageLightbox.motion) { largeBlock.value = note.object as? OpenBlock }
+        }
         .overlay(alignment: .top) { toast }
         .task { await applyShowcase() }
         .onChange(of: store.activeID) {
             lightbox.value = nil
+            largeBlock.value = nil
             blocksOpen.value = false
             imagesHintOpen.value = false
         }
@@ -475,6 +482,17 @@ struct MainView: View {
             )
             // Grows out of the thumbnails' corner and shrinks back into it.
             .transition(.scale(scale: 0.12, anchor: .bottomTrailing).combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder
+    private var blockLightboxView: some View {
+        if let block = largeBlock.value {
+            BlockLightbox(block: block) {
+                withAnimation(ImageLightbox.motion) { largeBlock.value = nil }
+                NotificationCenter.default.post(name: .focusEditor, object: nil)
+            }
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
         }
     }
 

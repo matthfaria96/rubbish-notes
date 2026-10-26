@@ -32,6 +32,9 @@ final class EditorTextView: NSTextView {
     private var blockHosts: [UUID: InlineBlockHost] = [:]
     /// What each block's view last showed; its view is rebuilt only when this changes.
     private var blockSignatures: [UUID: String] = [:]
+    /// The block shown large, and what the lightbox shows of it.
+    private weak var largeBlock: InlineBlockAttachment?
+    private weak var largeView: OpenBlock?
 
     /// Areas of the window (top-left origin) where floating panels and their
     /// buttons sit: the pointer is an arrow there, never the text I-beam.
@@ -120,6 +123,10 @@ final class EditorTextView: NSTextView {
                 guard let self, let block else { return }
                 self.askName(for: block)
             },
+            onExpand: { [weak self, weak block] in
+                guard let self, let block else { return }
+                self.showLarge(block)
+            },
             onDragChanged: { [weak self, weak block] translation in
                 guard let self, let block else { return }
                 self.showDropLine(for: block, translation: translation)
@@ -130,6 +137,30 @@ final class EditorTextView: NSTextView {
             },
             startsFocused: block.isNew
         )
+    }
+
+    /// Opens the block in the lightbox (MainView). Its edits come back here.
+    private func showLarge(_ block: InlineBlockAttachment) {
+        let open = OpenBlock(content: block.content, title: block.title, editable: isEditable, style: blockStyle)
+        open.onEdit = { [weak self, weak block] text in
+            guard let self, let block else { return }
+            block.content = text
+            // The block in the note shows the new text too.
+            self.blockSignatures[block.blockID] = nil
+            self.layoutInlineBlocks()
+            self.onBlocksChanged?()
+        }
+        open.onRename = { [weak self, weak block] in
+            guard let self, let block else { return }
+            self.askName(for: block)
+        }
+        open.onRemove = { [weak self, weak block] in
+            guard let self, let block else { return }
+            self.confirmRemoval(of: block)
+        }
+        largeBlock = block
+        largeView = open
+        NotificationCenter.default.post(name: .showBlockLarge, object: open)
     }
 
     /// A small dialog to name the block; Confirm saves, Cancel leaves it.
@@ -148,6 +179,7 @@ final class EditorTextView: NSTextView {
             guard let self, let block else { return }
             let name = InlineBlocks.clean(field.stringValue)
             block.title = name.isEmpty || name == L("Note block") ? nil : name
+            if self.largeBlock === block { self.largeView?.title = block.title }
             self.layoutInlineBlocks()
             self.onBlocksChanged?()
         }
@@ -174,6 +206,9 @@ final class EditorTextView: NSTextView {
             if self.shouldChangeText(in: range, replacementString: "") {
                 storage.replaceCharacters(in: range, with: "")
                 self.didChangeText()
+                if self.largeBlock === block {
+                    NotificationCenter.default.post(name: .showBlockLarge, object: nil)
+                }
             }
         }
         if let window {

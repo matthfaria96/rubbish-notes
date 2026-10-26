@@ -91,6 +91,7 @@
 "New empty block" = "Nouveau bloc vide";
 "Keep long texts here, apart from your notes. Paste one in, copy it out whenever you need it." = "Gardez ici les longs textes, à part de vos notes. Collez-en un, recopiez-le quand vous en avez besoin.";
 "Block %ld" = "Bloc %ld";
+"Show Larger" = "Afficher en grand";
 "Copy Block" = "Copier le bloc";
 "Delete Block" = "Supprimer le bloc";
 "Delete this note block?" = "Supprimer ce bloc de notes ?";

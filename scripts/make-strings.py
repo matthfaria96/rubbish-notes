@@ -99,6 +99,7 @@ T = [
 ("New empty block", "New empty block", "Novo bloco vazio", "Nuevo bloque vacío", "Nouveau bloc vide", "Neuer leerer Block", "Nuovo blocco vuoto"),
 ("Keep long texts here, apart from your notes. Paste one in, copy it out whenever you need it.", "Keep long texts here, apart from your notes. Paste one in, copy it out whenever you need it.", "Guarde aqui textos longos, separados dos seus rabiscos. Cole um e copie de volta quando precisar.", "Guarda aquí textos largos, aparte de tus notas. Pega uno y cópialo cuando lo necesites.", "Gardez ici les longs textes, à part de vos notes. Collez-en un, recopiez-le quand vous en avez besoin.", "Bewahre lange Texte hier auf, getrennt von deinen Notizen. Einsetzen und bei Bedarf wieder kopieren.", "Tieni qui i testi lunghi, a parte dalle note. Incollane uno e copialo quando serve."),
 ("Block %ld", "Block %ld", "Bloco %ld", "Bloque %ld", "Bloc %ld", "Block %ld", "Blocco %ld"),
+("Show Larger", "Show Larger", "Ver em tela maior", "Ver más grande", "Afficher en grand", "Größer anzeigen", "Mostra più grande"),
 ("Copy Block", "Copy Block", "Copiar Bloco", "Copiar bloque", "Copier le bloc", "Block kopieren", "Copia blocco"),
 ("Delete Block", "Delete Block", "Apagar Bloco", "Eliminar bloque", "Supprimer le bloc", "Block löschen", "Elimina blocco"),
 ("Delete this note block?", "Delete this note block?", "Apagar este bloco de anotação?", "¿Eliminar este bloque de notas?", "Supprimer ce bloc de notes ?", "Diesen Notizblock löschen?", "Eliminare questo blocco di note?"),

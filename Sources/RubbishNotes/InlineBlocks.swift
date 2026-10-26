@@ -173,6 +173,8 @@ struct InlineBlockView: View {
     let onToggle: () -> Void
     let onRemove: () -> Void
     var onRename: () -> Void = {}
+    /// Shows the block large, over the whole note.
+    var onExpand: () -> Void = {}
     /// While dragging: how far the block has moved; on release, where it was let go.
     let onDragChanged: (CGSize) -> Void
     let onDragEnded: (CGSize) -> Void
@@ -243,6 +245,7 @@ struct InlineBlockView: View {
             }
             Spacer(minLength: 4)
             if showMenu { blockMenu }
+            expandButton
             Image(systemName: "chevron.down")
                 .font(.system(size: 10, weight: .bold))
                 .rotationEffect(.degrees(expanded ? 180 : 0))
@@ -295,32 +298,24 @@ struct InlineBlockView: View {
         .onChange(of: content) { if content != draft { draft = nil } }
     }
 
-    /// Copy and Export above, Delete apart below them.
+    /// Opens the block large; it stays the same block, with all its actions.
+    private var expandButton: some View {
+        Button(action: onExpand) {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(secondary)
+                .frame(width: 22, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Show Larger")
+        .accessibilityLabel(Text("Show Larger"))
+    }
+
     private var blockMenu: some View {
         Menu {
-            if editable {
-                Button(action: onRename) {
-                    Label { Text("Change Name") } icon: { Image(systemName: "pencil") }.labelStyle(.titleAndIcon)
-                }
-            }
-            Button { copy() } label: {
-                Label { Text("Copy Block") } icon: { Image(systemName: "doc.on.doc") }.labelStyle(.titleAndIcon)
-            }
-            Menu {
-                ForEach(BlockExportFormat.allCases) { format in
-                    Button { NoteExporter.exportBlock(draft ?? content, title: title, as: format) } label: {
-                        Label { Text(format.title) } icon: { Image(systemName: format.symbol) }.labelStyle(.titleAndIcon)
-                    }
-                }
-            } label: {
-                Label { Text("Export") } icon: { Image(systemName: "square.and.arrow.up") }.labelStyle(.titleAndIcon)
-            }
-            if editable {
-                Divider()
-                Button(role: .destructive, action: onRemove) {
-                    Label { Text("Delete Block") } icon: { Image(systemName: "trash") }.labelStyle(.titleAndIcon)
-                }
-            }
+            BlockMenuItems(content: draft ?? content, title: title, editable: editable,
+                           onRename: onRename, onCopy: copy, onRemove: onRemove)
         } label: {
             Image(systemName: copied ? "checkmark" : "ellipsis")
                 .font(.system(size: 13, weight: .semibold))
@@ -358,6 +353,9 @@ struct BlockTextArea: NSViewRepresentable {
     let accent: NSColor
     let editable: Bool
     var focusOnAppear = false
+    var fontSize: CGFloat = 13
+    /// Esc inside the text; nil leaves Esc to the text view.
+    var onEscape: (() -> Void)?
     let onChange: (String) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -369,7 +367,7 @@ struct BlockTextArea: NSViewRepresentable {
         let view = scroll.documentView as! NSTextView
         view.isRichText = false
         view.drawsBackground = false
-        view.font = .systemFont(ofSize: 13)
+        view.font = .systemFont(ofSize: fontSize)
         view.textContainerInset = NSSize(width: 0, height: 2)
         view.textContainer?.lineFragmentPadding = 2
         view.isAutomaticQuoteSubstitutionEnabled = false
@@ -400,6 +398,12 @@ struct BlockTextArea: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? NSTextView else { return }
             parent.onChange(view.string)
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            guard selector == #selector(NSResponder.cancelOperation(_:)), let onEscape = parent.onEscape else { return false }
+            onEscape()
+            return true
         }
     }
 }

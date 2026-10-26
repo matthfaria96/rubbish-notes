@@ -8,10 +8,6 @@
 	<string>Rubbish Notes</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
-		<!-- Opens plain text from the Finder in its own window (PlainTextDocument).
-		     Alternate: listed in Open With without taking over .txt files;
-		     Settings › General › Text Files makes it the default when asked.
-		     No NSDocumentClass, so AppKit never opens untitled documents. -->
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>Plain Text</string>
@@ -49,7 +45,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.1.1</string>
 	<key>CFBundleVersion</key>
-	<string>6</string>
+	<string>7</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
@@ -58,20 +54,19 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Notes worth keeping, written on rubbish.</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableDownloaderService</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://witchmymac.com/appcast/rubbishnotes.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>yhoDaYLDki5BV0c44pefouDhxbliuGqLKxXKXXK1Pb0=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
-	<key>SUAutomaticallyUpdate</key>
-	<false/>
-	<!-- Sandboxed: Sparkle downloads and installs through its XPC services. -->
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUEnableDownloaderService</key>
-	<true/>
 </dict>
 </plist>
