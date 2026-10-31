@@ -3,7 +3,7 @@ import Combine
 import UniformTypeIdentifiers
 
 /// A text file from outside the notes (a .txt or .md in Documents, say),
-/// listed under Open Files in the sidebar and edited in place. It is never
+/// listed under Open Files in the sidebar and edited there. It is never
 /// copied into the notes, so it gets plain editing only: no note blocks,
 /// images, status or sub-notes, which a .txt or .md file can't hold.
 struct OpenedFile: Codable, Identifiable, Equatable {
@@ -21,9 +21,10 @@ struct OpenedFile: Codable, Identifiable, Equatable {
     var kindName: String { isMarkdown ? "Markdown" : L("Plain text") }
 }
 
-/// The Open Files list and the one file shown in the editor. Typing is saved
-/// 0.6 s after it stops, in the encoding the file was read in; changes made
-/// in other apps come back in while nothing is waiting to be saved.
+/// The Open Files list and the one file shown in the editor. Unlike notes,
+/// these files are written only when the person saves (⌘S, Save As…), as in
+/// any text editor; until then their changes are kept here, also while
+/// another file or a note is shown, and the app asks before they could be lost.
 final class OpenedFiles: ObservableObject {
     static let shared = OpenedFiles()
 
@@ -34,20 +35,22 @@ final class OpenedFiles: ObservableObject {
     @Published private(set) var textVersion = 0
     @Published private(set) var counts = TextCounts()
     @Published private(set) var justSaved = false
+    /// Files with changes that aren't in the file yet.
+    @Published private(set) var unsaved: Set<UUID> = []
     /// The active file couldn't be read (moved, deleted, or no longer allowed).
     @Published private(set) var unreadable = false
-    /// Some of its bytes didn't read as text (an unknown encoding): shown, never rewritten.
+    /// Some of its bytes didn't read as text (an unknown encoding): only Save As can write it.
     @Published private(set) var readOnly = false
 
     private let defaults: UserDefaults
     /// Where messages go (the notes window's toast).
     private weak var notes: NoteStore?
+    /// Unsaved text of the files not on screen.
+    private var edits: [UUID: String] = [:]
     private var encoding: String.Encoding = .utf8
     /// The file began with a UTF-8 byte-order mark, written back with it.
     private var byteOrderMark = false
-    private var dirty = false
     private var diskStamp: Date?
-    private var pendingSave: DispatchWorkItem?
     private var savedBadge: DispatchWorkItem?
     private var countWork: DispatchWorkItem?
     private var watcher: DispatchSourceFileSystemObject?
@@ -56,19 +59,21 @@ final class OpenedFiles: ObservableObject {
     private var scoped: [UUID: URL] = [:]
 
     static let listKey = "RubbishNotes.openedFiles"
-    private static let saveDelay = 0.6
 
     init(defaults: UserDefaults = .standard, notes: NoteStore? = .shared) {
         self.defaults = defaults
         self.notes = notes
         files = Self.load(from: defaults)
         files = files.map(resolve)
-        save()
-        // Picking a note puts the note back in the editor.
+        storeList()
+        // Picking a note puts the note back in the editor (the file keeps its changes).
         notes?.willSelectNote = { [weak self] in self?.leave() }
     }
 
     var active: OpenedFile? { files.first { $0.id == activeID } }
+
+    /// Whether Save has something to write for the file on screen.
+    var canSave: Bool { activeID.map { unsaved.contains($0) } ?? false && !readOnly && !unreadable }
 
     // MARK: List
 
@@ -76,65 +81,68 @@ final class OpenedFiles: ObservableObject {
     @discardableResult
     func open(_ url: URL) -> UUID {
         let path = url.standardizedFileURL.resolvingSymlinksInPath().path
-        let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        let bookmark = Self.bookmark(for: url)
         var file = files.first { $0.path == path }
             ?? OpenedFile(id: UUID(), path: path, bookmark: nil, openedAt: Date())
         file.bookmark = bookmark ?? file.bookmark
         file.openedAt = Date()
         files = [file] + files.filter { $0.id != file.id }
-        save()
+        storeList()
         // The list is shown with the inbox.
         if let notes, notes.box != .inbox { notes.show(.inbox) }
-        if activeID == file.id {
-            reload()
-        } else {
+        if activeID != file.id {
             select(file.id)
+        } else if !unsaved.contains(file.id) {
+            reload()
         }
         return file.id
     }
 
+    /// Shows a file (or, with nil, the notes again). Changes not saved yet
+    /// stay with the file they belong to.
     func select(_ id: UUID?) {
         guard id != activeID else { return }
-        guard resolveUnsaved() else { return }
+        if let current = activeID, unsaved.contains(current) { edits[current] = text }
         stopWatching()
         activeID = files.contains { $0.id == id } ? id : nil
         reload()
+        if let id, let edit = edits.removeValue(forKey: id) {
+            text = edit
+            textVersion += 1
+        }
         if activeID != nil { NotificationCenter.default.post(name: .focusEditor, object: nil) }
     }
 
-    /// Back to the notes: saves the file and lets the editor show the open note.
+    /// Back to the notes.
     func leave() {
         guard activeID != nil else { return }
         select(nil)
     }
 
-    /// Takes the file off the list; the file itself stays where it is.
+    /// Takes the file off the list (the file itself stays where it is),
+    /// asking first when it has changes that aren't saved.
     func close(_ id: UUID) {
+        if unsaved.contains(id) {
+            if id != activeID { select(id) }
+            guard let file = active, askToSave(file) else { return }
+        }
+        forget(id)
+    }
+
+    /// Drops the file from the list without asking.
+    func forget(_ id: UUID) {
+        discardChanges(id)
         if id == activeID { leave() }
         if let url = scoped.removeValue(forKey: id) { url.stopAccessingSecurityScopedResource() }
         files.removeAll { $0.id == id }
-        save()
+        storeList()
     }
 
-    /// File › Save a Copy while a file is shown.
-    func saveCopyWithPanel() {
-        guard let file = active else { return }
-        flushNow()
-        saveCopy(of: file)
-    }
-
-    @discardableResult
-    private func saveCopy(of file: OpenedFile) -> Bool {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = file.name
-        guard panel.runModal() == .OK, let dest = panel.url else { return false }
-        do {
-            try text.write(to: dest, atomically: true, encoding: .utf8)
-            return true
-        } catch {
-            NSSound.beep()
-            return false
-        }
+    /// Forgets the changes and shows the file as it is on disk.
+    func discardChanges(_ id: UUID) {
+        unsaved.remove(id)
+        edits[id] = nil
+        if id == activeID { reload() }
     }
 
     func reveal(_ id: UUID) {
@@ -142,91 +150,147 @@ final class OpenedFiles: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([file.url])
     }
 
-    // MARK: Editing
-
-    /// Called by the editor on every change.
-    func editorChanged(_ newText: String) {
-        guard activeID != nil, !unreadable, !readOnly, newText != text else { return }
-        text = newText
-        dirty = true
-        pendingSave?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.flushNow() }
-        pendingSave = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.saveDelay, execute: work)
+    /// The file's text with its unsaved changes, whether shown or not.
+    func currentText(of id: UUID) -> String? {
+        if id == activeID { return text }
+        if let edit = edits[id] { return edit }
+        guard let file = files.first(where: { $0.id == id }), let data = try? Data(contentsOf: file.url) else { return nil }
+        return PlainTextDocument.decode(data).text
     }
 
-    /// Writes waiting changes in place (the sandbox allows the file, not its folder).
-    /// Returns false when changes are still unsaved (the write failed).
+    // MARK: Editing and saving
+
+    /// Called by the editor on every change; nothing is written until Save.
+    func editorChanged(_ newText: String) {
+        guard let id = activeID, !unreadable, !readOnly, newText != text else { return }
+        text = newText
+        unsaved.insert(id)
+    }
+
+    /// Save (⌘S): writes the file on screen in place, in the encoding it was
+    /// read in. Returns false when the changes are still unsaved.
     @discardableResult
-    func flushNow() -> Bool {
-        pendingSave?.cancel()
-        pendingSave = nil
-        guard dirty, let file = active else { return true }
+    func save() -> Bool {
+        guard let file = active, unsaved.contains(file.id) else { return true }
+        guard !readOnly, !unreadable else { return saveAs() }
         // Another app changed the file since it was read: ask before writing over it.
         if let onDisk = NoteStore.modificationDate(file.url), let known = diskStamp, onDisk != known,
            !keepMineOverOutsideChange(file) {
-            dirty = false
-            reload()
+            discardChanges(file.id)
             return true
         }
+        guard write(text, to: file.url) else {
+            NSSound.beep()
+            notes?.notice = L("“%@” couldn’t be saved.", file.name)
+            return false
+        }
+        unsaved.remove(file.id)
+        diskStamp = NoteStore.modificationDate(file.url)
+        showSavedBadge()
+        return true
+    }
+
+    /// Save As… (⇧⌘S): a new name, folder and kind (.txt or .md). The list
+    /// then follows the new file; the old one stays as it was last saved.
+    @discardableResult
+    func saveAs() -> Bool {
+        guard let file = active else { return false }
+        let panel = NSSavePanel()
+        panel.title = L("Save As")
+        panel.nameFieldStringValue = file.name
+        panel.directoryURL = file.url.deletingLastPathComponent()
+        panel.allowedContentTypes = [.plainText, FileOpening.markdown]
+        panel.showsContentTypes = true
+        panel.currentContentType = file.isMarkdown ? FileOpening.markdown : .plainText
+        panel.isExtensionHidden = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let dest = panel.url else { return false }
+        if readOnly { encoding = .utf8 }
+        guard write(text, to: dest) else {
+            NSSound.beep()
+            notes?.notice = L("“%@” couldn’t be saved.", dest.lastPathComponent)
+            return false
+        }
+        // Another entry for the same file gives way to this one.
+        let path = dest.standardizedFileURL.resolvingSymlinksInPath().path
+        if let other = files.first(where: { $0.path == path && $0.id != file.id }) { forget(other.id) }
+        if let url = scoped.removeValue(forKey: file.id) { url.stopAccessingSecurityScopedResource() }
+        files = files.map { entry in
+            guard entry.id == file.id else { return entry }
+            var moved = entry
+            moved.path = path
+            moved.bookmark = Self.bookmark(for: dest)
+            return moved
+        }
+        storeList()
+        unsaved.remove(file.id)
+        readOnly = false
+        diskStamp = NoteStore.modificationDate(dest)
+        watch(dest)
+        showSavedBadge()
+        return true
+    }
+
+    /// Save / Don't Save / Cancel for one file; false means stay (Cancel, or saving failed).
+    func askToSave(_ file: OpenedFile) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L("Save the changes to “%@”?", file.name)
+        alert.informativeText = L("If you don’t save, your changes will be lost.")
+        alert.addButton(withTitle: L("Save"))
+        alert.addButton(withTitle: L("Don’t Save"))
+        alert.addButton(withTitle: L("Cancel"))
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return save() || saveAs()
+        case .alertSecondButtonReturn:
+            discardChanges(file.id)
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// On quit: goes through each file with unsaved changes, showing it and
+    /// asking. False cancels quitting.
+    func reviewUnsaved() -> Bool {
+        for file in files where unsaved.contains(file.id) {
+            FileOpening.showMainWindow?()
+            select(file.id)
+            guard askToSave(file) else { return false }
+        }
+        return true
+    }
+
+    /// The file changed in another app while there were unsaved changes here.
+    private func keepMineOverOutsideChange(_ file: OpenedFile) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L("“%@” was changed in another app.", file.name)
+        alert.informativeText = L("Keep your version and write it over theirs, or open theirs and drop your changes?")
+        alert.addButton(withTitle: L("Keep My Version"))
+        alert.addButton(withTitle: L("Use Their Version"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Writes in place (the sandbox grants the file, not its folder).
+    private func write(_ text: String, to url: URL) -> Bool {
         if text.data(using: encoding) == nil { encoding = .utf8 }
         var data = text.data(using: encoding) ?? Data(text.utf8)
         if byteOrderMark, encoding == .utf8 { data = Data([0xEF, 0xBB, 0xBF]) + data }
         var coordinationError: NSError?
         var writeError: Error?
         lastSelfWrite = Date()
-        NSFileCoordinator().coordinate(writingItemAt: file.url, options: [], error: &coordinationError) { url in
+        NSFileCoordinator().coordinate(writingItemAt: url, options: [], error: &coordinationError) { url in
             do { try data.write(to: url) } catch { writeError = error }
         }
-        if coordinationError != nil || writeError != nil {
-            NSSound.beep()
-            notes?.notice = L("“%@” couldn’t be saved.", file.name)
-            return false
-        }
-        dirty = false
-        diskStamp = NoteStore.modificationDate(file.url)
-        showSavedBadge()
-        return true
+        return coordinationError == nil && writeError == nil
     }
 
-    /// Before leaving the file (another file, a note, quitting): saves it, and
-    /// if that fails asks what to do with the typing. False means stay.
-    func resolveUnsaved() -> Bool {
-        guard !flushNow(), let file = active else { return true }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = L("“%@” couldn’t be saved.", file.name)
-        alert.informativeText = L("The file may have been moved, locked or put on a disk that is gone. Save your text somewhere else, or leave it unsaved.")
-        alert.addButton(withTitle: L("Save a Copy…"))
-        alert.addButton(withTitle: L("Discard Changes"))
-        alert.addButton(withTitle: L("Cancel"))
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            guard saveCopy(of: file) else { return false }
-        case .alertSecondButtonReturn:
-            break
-        default:
-            return false
-        }
-        dirty = false
-        return true
-    }
-
-    /// The file changed in another app while there was typing here.
-    private func keepMineOverOutsideChange(_ file: OpenedFile) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = L("“%@” was changed in another app.", file.name)
-        alert.informativeText = L("Keep your version and write it over theirs, or open theirs and drop your latest typing?")
-        alert.addButton(withTitle: L("Keep My Version"))
-        alert.addButton(withTitle: L("Use Their Version"))
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    /// Reads the active file again (on opening it, or after another app changed it).
+    /// Reads the active file again (on showing it, or after another app changed it).
     private func reload() {
         guard let file = active else {
             text = ""
             unreadable = false
+            readOnly = false
             textVersion += 1
             return
         }
@@ -277,8 +341,8 @@ final class OpenedFiles: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + (1.05 - sinceOwnWrite)) { [weak self] in self?.fileChanged() }
             return
         }
-        // Waiting typing is checked against the file when it is saved (`flushNow`).
-        if !dirty, NoteStore.modificationDate(file.url) != diskStamp {
+        // Unsaved changes are checked against the file when they are saved.
+        if !unsaved.contains(file.id), NoteStore.modificationDate(file.url) != diskStamp {
             reload()
         } else {
             // Apps that save by replacing the file leave us watching the old one.
@@ -339,7 +403,11 @@ final class OpenedFiles: ObservableObject {
         return (try? JSONDecoder().decode([OpenedFile].self, from: data)) ?? []
     }
 
-    private func save() {
+    private static func bookmark(for url: URL) -> Data? {
+        try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+
+    private func storeList() {
         guard let data = try? JSONEncoder().encode(files) else { return }
         defaults.set(data, forKey: Self.listKey)
     }

@@ -46,13 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
-    /// An outside file that can't be saved asks first, so quitting never drops its typing.
+    /// Open files with unsaved changes ask, one by one, before the app quits.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        OpenedFiles.shared.resolveUnsaved() ? .terminateNow : .terminateCancel
+        OpenedFiles.shared.reviewUnsaved() ? .terminateNow : .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        OpenedFiles.shared.flushNow()
         NoteStore.shared.flushNow()
         NoteStore.shared.savePendingIndex()
     }
@@ -106,18 +105,17 @@ struct RubbishNotesApp: App {
                 Button("Export Backup…", systemImage: "archivebox") { store.exportBackupWithPanel() }
                 Button("Import Backup…", systemImage: "arrow.down.doc") { store.importBackupWithPanel() }
             }
-            // A plain text window (NSDocument) answers these first; otherwise they act on the open note.
+            // A plain text window (NSDocument) answers these first; then an open
+            // file (saved only here), otherwise the open note (saved as you type).
             CommandGroup(replacing: .saveItem) {
                 Button("Save", systemImage: "square.and.arrow.down") {
-                    if !NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil) {
-                        files.flushNow()
-                        store.flushNow()
-                    }
+                    guard !NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil) else { return }
+                    if files.active != nil { files.save() } else { store.flushNow() }
                 }
                 .keyboardShortcut("s")
-                Button("Save a Copy…", systemImage: "square.and.arrow.down.on.square") {
+                Button(L(files.active != nil ? "Save As…" : "Save a Copy…"), systemImage: "square.and.arrow.down.on.square") {
                     guard !NSApp.sendAction(#selector(NSDocument.saveTo(_:)), to: nil, from: nil) else { return }
-                    if files.active != nil { files.saveCopyWithPanel() } else { store.exportActiveWithPanel() }
+                    if files.active != nil { files.saveAs() } else { store.exportActiveWithPanel() }
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
             }

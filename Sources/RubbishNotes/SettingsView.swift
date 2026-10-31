@@ -215,7 +215,7 @@ private struct TextFilesSection: View {
                     Text(L("Now they open in %@.", name))
                 }
             }
-            Text("They appear under Open Files in the sidebar and are edited as plain text, saved back to the same file. They aren’t added to your notes.")
+            Text("They appear under Open Files in the sidebar and are edited as plain text. Changes are written only when you save (⌘S) or Save As (⇧⌘S); they aren’t added to your notes.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

@@ -61,24 +61,49 @@ struct OpenedFilesTests {
         files.open(url)
         #expect(files.text == "café")
         files.editorChanged("café com leite")
-        files.flushNow()
+        files.save()
         let data = try Data(contentsOf: url)
         #expect(String(data: data, encoding: .windowsCP1252) == "café com leite")
         #expect(String(data: data, encoding: .utf8) == nil)
     }
 
-    @Test func pickingANoteLeavesTheFileAndSavesIt() throws {
+    @Test func nothingIsWrittenUntilSave() throws {
+        let desk = Desk()
+        let files = desk.makeFiles()
+        let url = try desk.write("antes", to: "a.txt")
+        let id = files.open(url)
+        files.editorChanged("depois")
+        #expect(files.unsaved == [id])
+        #expect(files.canSave)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "antes")
+        #expect(files.save())
+        #expect(files.unsaved.isEmpty)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "depois")
+    }
+
+    @Test func changesWaitWhileANoteOrAnotherFileIsShown() throws {
         let desk = Desk()
         let files = desk.makeFiles()
         let note = try #require(desk.store.newNote(content: "nota", name: "Nota"))
-        let url = try desk.write("antes", to: "a.txt")
-        files.open(url)
+        let a = try desk.write("antes", to: "a.txt")
+        let b = try desk.write("outro", to: "b.md")
+        let idA = files.open(a)
         files.editorChanged("depois")
         // The open note itself, picked again, also brings the notes back.
         desk.store.select(note)
         #expect(files.activeID == nil)
         #expect(desk.store.activeID == note)
-        #expect(try String(contentsOf: url, encoding: .utf8) == "depois")
+        files.open(b)
+        #expect(files.text == "outro")
+        files.select(idA)
+        #expect(files.text == "depois")
+        #expect(files.unsaved == [idA])
+        #expect(files.currentText(of: idA) == "depois")
+        #expect(try String(contentsOf: a, encoding: .utf8) == "antes")
+        // Letting the changes go shows the file as saved.
+        files.discardChanges(idA)
+        #expect(files.text == "antes")
+        #expect(files.unsaved.isEmpty)
     }
 
     @Test func theListOutlivesTheAppAndRemovingLeavesTheFile() throws {
@@ -102,9 +127,10 @@ struct OpenedFilesTests {
         files.open(url)
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: url.path)
         files.editorChanged("depois")
-        #expect(!files.flushNow())
+        #expect(!files.save())
+        #expect(files.text == "depois")
         try FileManager.default.setAttributes([.immutable: false], ofItemAtPath: url.path)
-        #expect(files.flushNow())
+        #expect(files.save())
         #expect(try String(contentsOf: url, encoding: .utf8) == "depois")
     }
 
@@ -117,7 +143,7 @@ struct OpenedFilesTests {
         files.open(url)
         #expect(files.readOnly)
         files.editorChanged("changed")
-        files.flushNow()
+        files.save()
         #expect(try Data(contentsOf: url) == bytes)
     }
 
@@ -129,7 +155,7 @@ struct OpenedFilesTests {
         files.open(url)
         #expect(!files.readOnly)
         files.editorChanged("olá!")
-        files.flushNow()
+        files.save()
         #expect(try Data(contentsOf: url) == Data([0xEF, 0xBB, 0xBF]) + Data("olá!".utf8))
     }
 
@@ -143,7 +169,7 @@ struct OpenedFilesTests {
         files.select(id)
         #expect(files.unreadable)
         files.editorChanged("typed into nothing")
-        files.flushNow()
+        files.save()
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 }

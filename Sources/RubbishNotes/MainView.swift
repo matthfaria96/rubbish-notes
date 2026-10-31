@@ -284,7 +284,7 @@ struct MainView: View {
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
         if let file = files.active {
-            OpenedFileToolbar(file: file)
+            OpenedFileToolbar(file: file, canSave: files.canSave)
         } else if let note = store.active, note.location == .trash {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {

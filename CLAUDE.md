@@ -27,7 +27,7 @@ is a symlink to it).
 
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer   # tests need Xcode
-swift test                          # 77 tests (Swift Testing), Tests/RubbishNotesTests
+swift test                          # 78 tests (Swift Testing), Tests/RubbishNotesTests
 scripts/build-app.sh --install      # universal app → build/ and /Applications
 ```
 
@@ -133,14 +133,20 @@ goes to **Open Files** (`OpenedFiles`), RTF/HTML are imported as before.
 Dropping a file on the window still imports it as a note.
 
 Open Files is a sidebar section above Pinned (inbox only). The file is
-edited in place in the notes window with a plain `NSTextView`
-(`PlainFileEditor`): no blocks, images, status, sub-notes, export or pin; the
-toolbar has Find and ··· (Show in Finder, Open in Separate Window =
-`PlainTextDocument`, Copy to My Notes, Remove from List). The list lives in
+edited in the notes window with a plain `NSTextView` (`PlainFileEditor`):
+no blocks, images, status, sub-notes, export or pin. **No autosave** (the
+owner's rule: only notes save themselves): changes wait in `OpenedFiles`
+(`unsaved`, kept per file while another file or a note is shown, orange dot
+on the row, "Not Saved" + Save in the footer) until Save (⌘S, toolbar,
+footer) or Save As (⇧⌘S: name, folder, .txt/.md format; the list then
+follows the new file). Remove from List and quitting ask Save / Don't Save /
+Cancel. The toolbar has Find, Save and ··· (Save, Save As, Show in Finder,
+Open in Separate Window = `PlainTextDocument`, also without autosave, Copy to
+My Notes, Remove from List). The list lives in
 `RubbishNotes.openedFiles` with security-scoped bookmarks
 (`files.bookmarks.app-scope` entitlement), so it survives relaunches. Writes
 are in place (not atomic: the sandbox grants the file, not its folder) in the
-encoding it was read in. `NoteStore.willSelectNote` makes any note selection
+encoding it was read in (BOM kept; bytes that didn't decode → read only). `NoteStore.willSelectNote` makes any note selection
 (even of the open note) leave the file.
 
 Backup (File › Export/Import Backup…, Settings › General › Backup):

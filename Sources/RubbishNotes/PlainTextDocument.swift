@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 /// A text file from outside the notes, open in a window of its own (Open
 /// Files › Open in Separate Window): no
 /// sidebar, tabs, blocks or images, just the text, saved back to the same
-/// file. It is never added to the notes. NSDocument does the saving (in place,
+/// file when the person saves (⌘S); closing with changes asks, as in any
+/// editor. It is never added to the notes. NSDocument does the saving (in place,
 /// coordinated, within the access the sandbox grants to files the person
 /// opened), so no extra entitlement is needed.
 @objc(RNPlainTextDocument)
@@ -15,7 +16,8 @@ final class PlainTextDocument: NSDocument {
     private(set) var encoding: String.Encoding = .utf8
     weak var textView: NSTextView?
 
-    override class var autosavesInPlace: Bool { true }
+    /// Outside files are written only on Save, never on their own.
+    override class var autosavesInPlace: Bool { false }
     override class var readableTypes: [String] { [UTType.plainText.identifier] }
     override class var writableTypes: [String] { [UTType.plainText.identifier] }
     override class func isNativeType(_ type: String) -> Bool { true }
@@ -87,10 +89,8 @@ final class PlainTextDocument: NSDocument {
 }
 
 /// The plain window: one text view in the editor's font and theme colours.
-/// Typing is saved a second after it stops, like the notes.
 final class PlainTextWindowController: NSWindowController, NSWindowDelegate, NSTextViewDelegate {
     private let textView: NSTextView
-    private var pendingSave: DispatchWorkItem?
     private var prefsObserver: NSObjectProtocol?
     /// Where the last plain window opened, so the next one cascades from it.
     private static var lastTopLeft: NSPoint?
@@ -159,12 +159,6 @@ final class PlainTextWindowController: NSWindowController, NSWindowDelegate, NST
         // Typing also counts through the undo manager; this covers every other
         // kind of change (dictation, services, accessibility), so none is left unsaved.
         if plainDocument?.isDocumentEdited == false { plainDocument?.updateChangeCount(.changeDone) }
-        pendingSave?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            self?.plainDocument?.autosave(withImplicitCancellability: false) { _ in }
-        }
-        pendingSave = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
@@ -172,10 +166,6 @@ final class PlainTextWindowController: NSWindowController, NSWindowDelegate, NST
     }
 
     private var plainDocument: PlainTextDocument? { document as? PlainTextDocument }
-
-    func windowWillClose(_ notification: Notification) {
-        pendingSave?.cancel()
-    }
 }
 
 /// How plain text is shown, in its own window and for Open Files in the

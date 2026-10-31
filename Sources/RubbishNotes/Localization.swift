@@ -48,6 +48,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     /// Opens a fresh copy of the app and quits this one, so the language takes effect.
     static func relaunch() {
+        // Open files with unsaved changes are saved (or let go) first, or nothing happens.
+        guard OpenedFiles.shared.reviewUnsaved() else { return }
         NoteStore.shared.flushNow()
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true

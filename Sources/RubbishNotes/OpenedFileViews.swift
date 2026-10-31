@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// An outside file in the notes window: just the text, with its kind and
-/// counts in the footer. Blocks, images, status and the rest stay hidden.
+/// An outside file in the notes window: just the text, with its kind, counts
+/// and save state in the footer. Blocks, images, status and the rest stay
+/// hidden. Changes are written only with Save (⌘S) or Save As (⇧⌘S).
 struct OpenedFileDetail: View {
     @EnvironmentObject private var files: OpenedFiles
     let file: OpenedFile
@@ -63,6 +64,7 @@ struct OpenedFileDetail: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(hasSelection ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            saveState
         }
         .font(.callout)
         .monospacedDigit()
@@ -74,7 +76,28 @@ struct OpenedFileDetail: View {
         .padding(.bottom, 14)
         .help(files.readOnly
               ? L("Some characters in “%@” couldn’t be read, so it is shown but never changed.", file.name)
-              : L("Plain text file: saved back to “%@” as you type. Note blocks, images and status aren’t available here.", file.name))
+              : L("Plain text file: changes are written to “%@” only when you save (⌘S). Note blocks, images and status aren’t available here.", file.name))
+    }
+
+    /// "Not saved" with a Save button while there are changes; "Saved" for a moment after.
+    @ViewBuilder
+    private var saveState: some View {
+        if files.unsaved.contains(file.id) {
+            Text("·").foregroundStyle(.tertiary)
+            Label("Not Saved", systemImage: "circle.fill")
+                .labelStyle(.titleAndIcon)
+                .imageScale(.small)
+                .foregroundStyle(.orange)
+            Button("Save") { files.save() }
+                .compatGlassProminentButtonStyle()
+                .controlSize(.small)
+                .help("Save the changes to this file (⌘S)")
+        } else if files.justSaved {
+            Text("·").foregroundStyle(.tertiary)
+            Label("Saved", systemImage: "checkmark")
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(.green)
+        }
     }
 
     private func chooseAgain() {
@@ -83,21 +106,30 @@ struct OpenedFileDetail: View {
         panel.allowedContentTypes = [.plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let old = file.id
-        if files.open(url) != old { files.close(old) }
+        if files.open(url) != old { files.forget(old) }
     }
 }
 
-/// One outside file in the sidebar: its name and the folder it was opened from.
+/// One outside file in the sidebar: its name and the folder it was opened
+/// from, with a dot while it has unsaved changes.
 struct OpenedFileRow: View {
     let file: OpenedFile
+    let unsaved: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Label {
-                Text(file.name)
-                    .font(.body.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                HStack(spacing: 5) {
+                    Text(file.name)
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if unsaved {
+                        Circle().fill(.orange).frame(width: 7, height: 7)
+                            .help("Not saved")
+                            .accessibilityLabel(Text("Not Saved"))
+                    }
+                }
             } icon: {
                 Image(systemName: file.isMarkdown ? "doc.text" : "doc.plaintext")
                     .foregroundStyle(.secondary)
@@ -124,27 +156,42 @@ struct OpenedFileRow: View {
 
 /// What an outside file offers: in its row's right click, the toolbar's ··· and the Note menu.
 struct OpenedFileMenu: View {
+    @ObservedObject private var files = OpenedFiles.shared
     let file: OpenedFile
 
     var body: some View {
-        Button("Show in Finder", systemImage: "folder") { OpenedFiles.shared.reveal(file.id) }
-        Button("Open in Separate Window", systemImage: "macwindow") {
-            // Never open in two places at once: each would save over the other.
-            OpenedFiles.shared.leave()
-            if OpenedFiles.shared.activeID != file.id { PlainTextDocument.open(file.url) }
+        let unsaved = files.unsaved.contains(file.id)
+        Button("Save", systemImage: "square.and.arrow.down") {
+            files.select(file.id)
+            files.save()
         }
-        Button("Copy to My Notes", systemImage: "square.and.arrow.down.on.square") {
-            OpenedFiles.shared.flushNow()
-            NoteStore.shared.importFiles([file.url])
+        .disabled(!unsaved)
+        Button("Save As…", systemImage: "square.and.arrow.down.on.square") {
+            files.select(file.id)
+            files.saveAs()
         }
         Divider()
-        Button("Remove from List", systemImage: "xmark") { OpenedFiles.shared.close(file.id) }
+        Button("Show in Finder", systemImage: "folder") { files.reveal(file.id) }
+        // The separate window reads the file from disk, so not while changes wait here.
+        Button("Open in Separate Window", systemImage: "macwindow") {
+            files.forget(file.id)
+            PlainTextDocument.open(file.url)
+        }
+        .disabled(unsaved)
+        Button("Copy to My Notes", systemImage: "note.text.badge.plus") {
+            guard let text = files.currentText(of: file.id) else { return NSSound.beep() }
+            NoteStore.shared.newNote(content: text, name: file.url.deletingPathExtension().lastPathComponent)
+        }
+        Divider()
+        Button("Remove from List", systemImage: "xmark") { files.close(file.id) }
     }
 }
 
 /// The toolbar while an outside file is shown: Find and the file's menu.
 struct OpenedFileToolbar: ToolbarContent {
     let file: OpenedFile
+    /// There are changes to write.
+    let canSave: Bool
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
@@ -154,6 +201,14 @@ struct OpenedFileToolbar: ToolbarContent {
                 Label("Find", systemImage: "magnifyingglass")
             }
             .help("Find in File (⌘F)")
+
+            Button {
+                OpenedFiles.shared.save()
+            } label: {
+                Label("Save", systemImage: "square.and.arrow.down")
+            }
+            .disabled(!canSave)
+            .help("Save the changes to this file (⌘S)")
 
             Menu {
                 OpenedFileMenu(file: file).labelStyle(.titleAndIcon)

@@ -28,7 +28,7 @@ struct SidebarView: View {
         List(selection: selection) {
             if !opened.isEmpty {
                 Section {
-                    ForEach(opened) { OpenedFileRow(file: $0).tag($0.id) }
+                    ForEach(opened) { OpenedFileRow(file: $0, unsaved: files.unsaved.contains($0.id)).tag($0.id) }
                 } header: {
                     Text("Open Files")
                         .help("Text files from other folders, edited in place as plain text")
