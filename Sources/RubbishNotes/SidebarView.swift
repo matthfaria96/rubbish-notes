@@ -263,14 +263,15 @@ struct NoteRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
-                if sidebarStatus { StatusMark(status: note.currentStatus) }
                 if renamingID == note.id {
                     RenameField(initial: note.title, onCommit: commitRename, onCancel: { renamingID = nil })
                 } else {
                     Text(note.title)
                         .font(.body.weight(isSubnote ? .medium : .semibold))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                 }
+                if sidebarStatus { StatusMark(status: note.currentStatus) }
                 if subnoteCount > 0 {
                     Spacer(minLength: 4)
                     SubnoteToggle(count: subnoteCount, collapsed: collapsed) {

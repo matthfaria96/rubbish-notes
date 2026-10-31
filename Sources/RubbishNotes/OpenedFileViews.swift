@@ -126,6 +126,8 @@ struct OpenedFileRow: View {
                         .truncationMode(.middle)
                     if unsaved {
                         Circle().fill(.orange).frame(width: 7, height: 7)
+                            .fixedSize()
+                            .layoutPriority(1)
                             .help("Not saved")
                             .accessibilityLabel(Text("Not Saved"))
                     }

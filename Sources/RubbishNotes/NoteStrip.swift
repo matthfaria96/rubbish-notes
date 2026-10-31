@@ -203,7 +203,6 @@ struct NoteTab: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.tint.opacity(0.7))
             }
-            if showStatus { StatusMark(status: note.currentStatus) }
             if note.pinned {
                 Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary)
             }
@@ -218,6 +217,7 @@ struct NoteTab: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: isSubnote ? 100 : 120)
             }
+            if showStatus { StatusMark(status: note.currentStatus) }
             if let item, item.subnoteCount > 0 {
                 SubnoteToggle(count: item.subnoteCount, collapsed: item.collapsed) {
                     withAnimation(.smooth(duration: 0.25)) { store.toggleSubnotes(note.id) }

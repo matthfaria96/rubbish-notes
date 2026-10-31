@@ -49,14 +49,18 @@ struct StatusDots: View {
 }
 
 /// The sidebar's status mark before a title.
+/// The status dot after a note's name in the lists. It never shrinks: a
+/// long name ends in "…" before the dot.
 struct StatusMark: View {
     let status: NoteStatus
 
     var body: some View {
         Circle()
             .fill(status.color)
-            .frame(width: 5, height: 5)
-            .opacity(0.75)
+            .frame(width: 7, height: 7)
+            .fixedSize()
+            .layoutPriority(1)
+            .help(status.title)
             .accessibilityLabel(status.title)
     }
 }
