@@ -103,6 +103,19 @@ private struct GeneralSettings: View {
                 }
             }
             TextFilesSection()
+            Section("Backup") {
+                LabeledContent {
+                    HStack {
+                        Button("Export…") { NoteStore.shared.exportBackupWithPanel() }
+                            .help("Save every note, sub-note, block, image and setting in one .zip")
+                        Button("Import…") { NoteStore.shared.importBackupWithPanel() }
+                            .help("Bring back the notes from a backup .zip, replacing yours or adding to them")
+                    }
+                } label: {
+                    Text("All Notes in One .zip")
+                    Text("Notes, sub-notes, blocks, images, status and settings.")
+                }
+            }
             Section("Storage") {
                 LabeledContent {
                     Button("Show in Finder") {
@@ -197,12 +210,12 @@ private struct TextFilesSection: View {
                     }
                 }
             } label: {
-                Text("Open .txt files with Rubbish Notes")
+                Text("Open .txt and .md files with Rubbish Notes")
                 if !isDefault.value, let name = current.value {
                     Text(L("Now they open in %@.", name))
                 }
             }
-            Text("They open in a plain window of their own, saved back to the same file, and aren’t added to your notes.")
+            Text("They appear under Open Files in the sidebar and are edited as plain text, saved back to the same file. They aren’t added to your notes.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

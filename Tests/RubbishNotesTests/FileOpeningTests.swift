@@ -8,7 +8,7 @@ private func temporaryFolder() -> URL {
 
 @Suite("Opening files from the Finder")
 struct FileOpeningTests {
-    @Test func libraryNotesOpenAsNotesAndOtherTextGetsAPlainWindow() throws {
+    @Test func libraryNotesOpenAsNotesAndOtherTextGoesToOpenFiles() throws {
         let root = temporaryFolder()
         let defaults = UserDefaults(suiteName: "RubbishNotesOpen-\(UUID().uuidString)")!
         defaults.set(true, forKey: Prefs.didSeed)
@@ -20,8 +20,8 @@ struct FileOpeningTests {
         #expect(FileOpening.route(store.url(for: note), in: store) == .note(note))
         #expect(FileOpening.route(root.appendingPathComponent("notes-index.json"), in: store) == .library)
         let outside = FileManager.default.temporaryDirectory
-        #expect(FileOpening.route(outside.appendingPathComponent("letter.txt"), in: store) == .plainWindow)
-        #expect(FileOpening.route(outside.appendingPathComponent("readme.md"), in: store) == .plainWindow)
+        #expect(FileOpening.route(outside.appendingPathComponent("letter.txt"), in: store) == .outsideFile)
+        #expect(FileOpening.route(outside.appendingPathComponent("readme.md"), in: store) == .outsideFile)
         #expect(FileOpening.route(outside.appendingPathComponent("page.rtf"), in: store) == .importFile)
         // Nothing was imported along the way.
         #expect(store.notes.count == 1)

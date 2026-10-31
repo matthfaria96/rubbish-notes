@@ -32,23 +32,12 @@ extension Notification.Name {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// Set when a file opened at launch needs the notes window (a note, an import).
-    private var filesNeedNotes = false
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         IconStyle.current.applyToDock()
         AppUpdater.shared.start()
-        // Launched to open files (Finder double-click): the notes window that
-        // SwiftUI puts up stays closed unless one of the files needs it.
-        let defaultLaunch = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
-        guard !defaultLaunch else { return }
-        DispatchQueue.main.async { [self] in
-            guard !filesNeedNotes, FileOpening.hasPlainWindows else { return }
-            FileOpening.notesWindows.forEach { $0.close() }
-        }
     }
 
-    /// Clicking the Dock icon while only plain text windows are open brings the notes back.
+    /// Clicking the Dock icon while only separate plain text windows are open brings the notes back.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard flag, FileOpening.notesWindows.isEmpty else { return true }
         FileOpening.showMainWindow?()
@@ -57,15 +46,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
+    /// An outside file that can't be saved asks first, so quitting never drops its typing.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        OpenedFiles.shared.resolveUnsaved() ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        OpenedFiles.shared.flushNow()
         NoteStore.shared.flushNow()
         NoteStore.shared.savePendingIndex()
     }
 
     /// Finder double-click, Open With, a drop on the Dock icon: outside text
-    /// files open in their own plain window; library notes open as notes.
+    /// files go to Open Files; library notes open as notes.
     func application(_ application: NSApplication, open urls: [URL]) {
-        if FileOpening.open(urls) { filesNeedNotes = true }
+        FileOpening.open(urls)
     }
 }
 
@@ -73,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct RubbishNotesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = NoteStore.shared
+    @StateObject private var files = OpenedFiles.shared
     @AppStorage(Prefs.floatOnTop) private var floatOnTop = false
     @AppStorage(Prefs.focusMode) private var focusMode = false
     @AppStorage(Prefs.ruled) private var ruled = false
@@ -83,6 +79,7 @@ struct RubbishNotesApp: App {
         Window("Rubbish Notes", id: "main") {
             MainView()
                 .environmentObject(store)
+                .environmentObject(files)
         }
         .defaultSize(width: 960, height: 640)
         .windowToolbarStyle(.unified)
@@ -102,31 +99,42 @@ struct RubbishNotesApp: App {
                     if let id = store.activeID { store.newSubnote(under: id) }
                 }
                 .keyboardShortcut("n", modifiers: [.command, .option])
-                .disabled(!store.canAddSubnote(to: store.activeID))
-                Button("Open…", systemImage: "doc") { store.importWithPanel() }
+                .disabled(files.active != nil || !store.canAddSubnote(to: store.activeID))
+                Button("Open…", systemImage: "doc") { FileOpening.openWithPanel() }
                     .keyboardShortcut("o")
+                Divider()
+                Button("Export Backup…", systemImage: "archivebox") { store.exportBackupWithPanel() }
+                Button("Import Backup…", systemImage: "arrow.down.doc") { store.importBackupWithPanel() }
             }
             // A plain text window (NSDocument) answers these first; otherwise they act on the open note.
             CommandGroup(replacing: .saveItem) {
                 Button("Save", systemImage: "square.and.arrow.down") {
-                    if !NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil) { store.flushNow() }
+                    if !NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil) {
+                        files.flushNow()
+                        store.flushNow()
+                    }
                 }
                 .keyboardShortcut("s")
                 Button("Save a Copy…", systemImage: "square.and.arrow.down.on.square") {
-                    if !NSApp.sendAction(#selector(NSDocument.saveTo(_:)), to: nil, from: nil) { store.exportActiveWithPanel() }
+                    guard !NSApp.sendAction(#selector(NSDocument.saveTo(_:)), to: nil, from: nil) else { return }
+                    if files.active != nil { files.saveCopyWithPanel() } else { store.exportActiveWithPanel() }
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .printItem) {
                 Button("Print…", systemImage: "printer") {
-                    guard !NSApp.sendAction(#selector(NSDocument.printDocument(_:)), to: nil, from: nil),
-                          store.activeID != nil else { return }
-                    Printing.print(store.text, font: FontChoice.font(fontName, size: fontSize))
+                    guard !NSApp.sendAction(#selector(NSDocument.printDocument(_:)), to: nil, from: nil) else { return }
+                    let font = FontChoice.font(fontName, size: fontSize)
+                    if files.active != nil {
+                        Printing.print(files.text, font: font)
+                    } else if store.activeID != nil {
+                        Printing.print(store.text, font: font)
+                    }
                 }
                 .keyboardShortcut("p")
             }
             CommandMenu("Note") {
-                NoteCommands(store: store)
+                NoteCommands(store: store, files: files)
             }
             CommandGroup(before: .sidebar) {
                 ForEach(Array(NoteBox.allCases.enumerated()), id: \.element) { index, box in
@@ -209,9 +217,12 @@ private struct SubnoteCommands: View {
 /// The menu-bar Note menu: what can be done to the open note in its box.
 private struct NoteCommands: View {
     @ObservedObject var store: NoteStore
+    @ObservedObject var files: OpenedFiles
 
     var body: some View {
-        if let note = store.active {
+        if let file = files.active {
+            OpenedFileMenu(file: file)
+        } else if let note = store.active {
             switch note.location {
             case .trash:
                 Button("Restore to Inbox", systemImage: "arrow.uturn.backward") { store.restore(note.id) }

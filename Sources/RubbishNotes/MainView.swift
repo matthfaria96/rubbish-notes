@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 
 struct MainView: View {
     @EnvironmentObject private var store: NoteStore
+    /// Outside .txt / .md files; while one is shown it takes the note's place.
+    @EnvironmentObject private var files: OpenedFiles
     @AppStorage(Prefs.appearance) private var appearanceRaw = AppearanceChoice.system.rawValue
     @AppStorage(Prefs.fontName) private var fontName = FontChoice.defaultName
     @AppStorage(Prefs.fontSize) private var fontSize = Prefs.defaultFontSize
@@ -98,7 +100,14 @@ struct MainView: View {
 
     private var detail: some View {
         Group {
-            if store.activeID == nil {
+            if let file = files.active {
+                OpenedFileDetail(
+                    file: file,
+                    styleKey: "\(fontName)|\(fontSize)|\(themeID)|\(spellCheck)",
+                    highlight: searchState.value,
+                    focusMode: focusMode
+                )
+            } else if store.activeID == nil {
                 ContentUnavailableView {
                     Label("No Note", systemImage: "note.text")
                 } description: {
@@ -186,6 +195,12 @@ struct MainView: View {
         }
         .overlay(alignment: .top) { toast }
         .task { await applyShowcase() }
+        .onChange(of: files.activeID) {
+            lightbox.value = nil
+            largeBlock.value = nil
+            blocksOpen.value = false
+            imagesHintOpen.value = false
+        }
         .onChange(of: store.activeID) {
             lightbox.value = nil
             largeBlock.value = nil
@@ -221,7 +236,7 @@ struct MainView: View {
             Text("You can’t undo this.")
         }
         // The window keeps its title (Window menu); the bar shows the editable one.
-        .navigationTitle(store.active?.title ?? "Rubbish Notes")
+        .navigationTitle(files.active?.name ?? store.active?.title ?? "Rubbish Notes")
         .toolbar(removing: .title)
         .toolbar {
             if !focusMode {
@@ -258,8 +273,8 @@ struct MainView: View {
     private func titleField(width: CGFloat?, limit: CGFloat = 340) -> some View {
         TitleField(
             limit: limit,
-            title: store.active?.title ?? "Rubbish Notes",
-            editable: store.active.map { $0.location != .trash } ?? false,
+            title: files.active?.name ?? store.active?.title ?? "Rubbish Notes",
+            editable: files.active == nil && store.active.map { $0.location != .trash } ?? false,
             width: width
         ) { newTitle in
             if let id = store.activeID { store.rename(id, to: newTitle) }
@@ -268,7 +283,9 @@ struct MainView: View {
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
-        if let note = store.active, note.location == .trash {
+        if let file = files.active {
+            OpenedFileToolbar(file: file)
+        } else if let note = store.active, note.location == .trash {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     store.restore(note.id)
@@ -536,7 +553,7 @@ struct MainView: View {
 
     /// Images go to the open note's footer, never into its text.
     private func attachImages(_ files: [URL], _ data: Data?) -> Bool {
-        guard store.activeID != nil, !isTrashed else { return false }
+        guard store.activeID != nil, self.files.activeID == nil, !isTrashed else { return false }
         let attached = files.isEmpty ? data.map { store.attachImageData($0) } ?? false : store.attachImageFiles(files)
         if attached {
             imagesHintOpen.value = false

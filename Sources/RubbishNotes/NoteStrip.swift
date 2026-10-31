@@ -15,6 +15,7 @@ enum NotesLayout: String, CaseIterable, Identifiable {
 /// with sections, reordering, Delete All and Empty Trash).
 struct NoteStrip: View {
     @EnvironmentObject private var store: NoteStore
+    @EnvironmentObject private var files: OpenedFiles
     @Binding var query: String
     @StateObject private var renaming = ViewState<UUID?>(nil)
     @StateObject private var showAll = ViewState(false)
@@ -47,6 +48,7 @@ struct NoteStrip: View {
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         .onChange(of: store.activeID) { showAll.value = false }
+        .onChange(of: files.activeID) { showAll.value = false }
     }
 
     // MARK: Pieces
@@ -119,7 +121,7 @@ struct NoteStrip: View {
         let note = item.note
         let tab = NoteTab(
             note: note,
-            selected: note.id == store.activeID,
+            selected: note.id == store.activeID && files.activeID == nil,
             dropBefore: dropTarget.value == note.id,
             renamingID: $renaming.value,
             item: item

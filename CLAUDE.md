@@ -4,8 +4,9 @@ Plain-text notes app for macOS (SwiftUI + AppKit, Swift Package, no Xcode projec
 This file is the state of the project, so a new session doesn't have to read the
 whole codebase. Keep it current when something here changes.
 
-Last updated 2026-10-25. Version **1.1.1** (build 6, in-app updates with Sparkle) is the
-current GitHub release. The project lives on the external disk
+Last updated 2026-10-31. Version **1.1.2** (build 7) is the current GitHub
+release. Build 8 (library backup .zip, Open Files for outside .txt/.md) is
+installed locally for testing, not released. The project lives on the external disk
 (`/Volumes/MacMiniDev/Moved/VSCode Temp/Rubbish Notes`; `~/Documents/VSCode Temp`
 is a symlink to it).
 
@@ -26,7 +27,7 @@ is a symlink to it).
 
 ```sh
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer   # tests need Xcode
-swift test                          # 58 tests (Swift Testing), Tests/RubbishNotesTests
+swift test                          # 77 tests (Swift Testing), Tests/RubbishNotesTests
 scripts/build-app.sh --install      # universal app → build/ and /Applications
 ```
 
@@ -126,11 +127,30 @@ in the same box (`nestedIDs`, `outline(_:query:keep:)`), travel with it in
 Trash after a confirmation (`requestDeletePermanently`). A missing parent
 releases them (`releaseOrphans`).
 
-Files opened from the Finder / Open With / the Dock go through
-`AppDelegate.application(_:open:)` → `FileOpening`: a note's own file opens
-that note, other plain text opens in a `PlainTextDocument` window (never
-imported), RTF/HTML are imported as before. Launched just for such files,
-the notes window is closed again (`launchIsDefaultUserInfoKey`).
+Files opened from the Finder / Open With / the Dock / File › Open go through
+`FileOpening`: a note's own file opens that note, other plain text (.txt, .md)
+goes to **Open Files** (`OpenedFiles`), RTF/HTML are imported as before.
+Dropping a file on the window still imports it as a note.
+
+Open Files is a sidebar section above Pinned (inbox only). The file is
+edited in place in the notes window with a plain `NSTextView`
+(`PlainFileEditor`): no blocks, images, status, sub-notes, export or pin; the
+toolbar has Find and ··· (Show in Finder, Open in Separate Window =
+`PlainTextDocument`, Copy to My Notes, Remove from List). The list lives in
+`RubbishNotes.openedFiles` with security-scoped bookmarks
+(`files.bookmarks.app-scope` entitlement), so it survives relaunches. Writes
+are in place (not atomic: the sandbox grants the file, not its folder) in the
+encoding it was read in. `NoteStore.willSelectNote` makes any note selection
+(even of the open note) leave the file.
+
+Backup (File › Export/Import Backup…, Settings › General › Backup):
+one .zip with Notes/Archive/Trash, `notes-index.json`, `Attachments/`,
+`Settings.plist` (`LibraryBackup.settingKeys` only) and a manifest. Import
+asks Replace All (the current library moves to a new dated `Rubbish Notes (before
+import …)` folder next to the notes folder, never overwritten; any failure rolls back; then `reloadFromDisk`) or Add to My Notes
+(`mergeLibrary`: clashing ids get new ones, names get numbers, sub-notes
+follow). `ZipReader` unzips in-process (stored/deflate, CRC, no `..`, keeps
+file dates); index entries with unsafe names are dropped.
 
 | File | Holds |
 |---|---|
@@ -147,8 +167,12 @@ the notes window is closed again (`launchIsDefaultUserInfoKey`).
 | `BlockLightbox.swift` | A note block shown large over the note (`OpenBlock`, sent by the editor with `.showBlockLarge`): edit, ··· menu (`BlockMenuItems`, shared with the inline block), Esc / shrink / click outside closes. |
 | `NoteExport.swift` | Export note as PDF or text (title, text with blocks open, footer blocks; with images, a .zip) or Markdown (`# title`, the text without its note blocks, then each note block and footer block as a `##` section; images left out). Block export. `ExportMenu`. |
 | `SubnoteExport.swift` | Markdown of a parent with sub-notes: asks (`askIncludeSubnotes`), then one .zip with `<parent>/<parent>.md` (ending in links) and one .md per sub-note (`markdownFileNames`: sanitized, no case-insensitive repeats). |
-| `PlainTextDocument.swift` | NSDocument for outside text files: plain `NSTextView` window (no tabs/sidebar/blocks/images), editor font + theme, autosave in place 1 s after typing, original encoding kept. |
-| `FileOpening.swift` | Routes files opened from outside (note / plain window / import); `DefaultTextApp` (Settings › Text Files › Make Default via `NSWorkspace.setDefaultApplication`). |
+| `PlainTextDocument.swift` | NSDocument for an outside file in its own window (Open in Separate Window): plain `NSTextView`, autosave in place 1 s after typing, original encoding kept. `PlainTextLook` (plain text view setup, font/spacing/theme) is shared with Open Files. |
+| `OpenedFiles.swift` | Open Files model: list + bookmarks in UserDefaults, the active file's text, in-place saving (0.6 s), file watching. |
+| `OpenedFileViews.swift` | `OpenedFileDetail` (editor + kind/counts footer, unreadable state), `OpenedFileRow`, `OpenedFileMenu`, `OpenedFileToolbar`, `PlainFileEditor`. |
+| `LibraryBackup.swift` | Backup .zip export/import, Replace All / Add to My Notes. |
+| `ZipReader.swift` | Minimal in-sandbox unzip (no `ditto`), `CRC32`. |
+| `FileOpening.swift` | Routes files opened from outside (note / Open Files / import), File › Open panel; `DefaultTextApp` (Settings › Text Files › Make Default for .txt and .md via `NSWorkspace.setDefaultApplication`). |
 | `AttachmentViews.swift` | Footer image button, empty-state hint panel, `ImageLightbox` (themed, filmstrip, never Quick Look — the owner forbade it). |
 | `BlocksView.swift` | Footer blocks panel (200–520 pt tall). |
 | `FloatingPanel.swift` | `footerPanel` look; `FooterPanelZones` closes panels on outside clicks and keeps the arrow cursor over them. |

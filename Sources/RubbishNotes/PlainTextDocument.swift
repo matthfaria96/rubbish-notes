@@ -1,7 +1,8 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// A text file from outside the notes, open in a window of its own: no
+/// A text file from outside the notes, open in a window of its own (Open
+/// Files › Open in Separate Window): no
 /// sidebar, tabs, blocks or images, just the text, saved back to the same
 /// file. It is never added to the notes. NSDocument does the saving (in place,
 /// coordinated, within the access the sandbox grants to files the person
@@ -125,18 +126,8 @@ final class PlainTextWindowController: NSWindowController, NSWindowDelegate, NST
         if let prefsObserver { NotificationCenter.default.removeObserver(prefsObserver) }
     }
 
-    /// Plain text only: no rich text, images or automatic substitutions.
     private func configureTextView(text: String) {
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.allowsImageEditing = false
-        textView.allowsUndo = true
-        textView.usesFindBar = true
-        textView.isIncrementalSearchingEnabled = true
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticLinkDetectionEnabled = false
+        PlainTextLook.configure(textView)
         textView.textContainerInset = NSSize(width: 28, height: 22)
         textView.string = text
         textView.delegate = self
@@ -145,31 +136,12 @@ final class PlainTextWindowController: NSWindowController, NSWindowDelegate, NST
 
     /// The editor's font, spelling choice and theme, kept current with Settings.
     private func applyLook() {
-        let defaults = UserDefaults.standard
-        let theme = EditorTheme.named(defaults.string(forKey: Prefs.editorTheme) ?? EditorTheme.standard.id)
-        let accent = theme.accentNS(fallback: IconStyle.current.accentNS)
-        let size = defaults.object(forKey: Prefs.fontSize) as? Double ?? Prefs.defaultFontSize
-        let font = FontChoice.font(defaults.string(forKey: Prefs.fontName) ?? FontChoice.defaultName, size: size)
-        if textView.font != font { textView.font = font }
-        // The editor's line spacing.
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.minimumLineHeight = ceil(font.pointSize * 1.45)
-        paragraph.maximumLineHeight = paragraph.minimumLineHeight
-        textView.defaultParagraphStyle = paragraph
-        textView.typingAttributes[.paragraphStyle] = paragraph
-        if let storage = textView.textStorage {
-            storage.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: storage.length))
-        }
-        textView.textColor = theme.textNS()
-        textView.backgroundColor = theme.backgroundNS()
-        textView.insertionPointColor = accent
-        textView.selectedTextAttributes = [.backgroundColor: theme.selectionNS(fallback: accent)]
-        textView.isContinuousSpellCheckingEnabled = defaults.bool(forKey: Prefs.spellCheck)
+        let theme = PlainTextLook.apply(to: textView)
         textView.enclosingScrollView?.backgroundColor = theme.backgroundNS()
         guard let window else { return }
         window.backgroundColor = theme.backgroundNS()
         window.titlebarAppearsTransparent = theme.background != nil
-        let choice = AppearanceChoice(rawValue: defaults.string(forKey: Prefs.appearance) ?? "") ?? .system
+        let choice = AppearanceChoice(rawValue: UserDefaults.standard.string(forKey: Prefs.appearance) ?? "") ?? .system
         let dark = choice.scheme.map { $0 == .dark } ?? theme.isDark
         window.appearance = dark.map { NSAppearance(named: $0 ? .darkAqua : .aqua) } ?? nil
     }
@@ -203,5 +175,50 @@ final class PlainTextWindowController: NSWindowController, NSWindowDelegate, NST
 
     func windowWillClose(_ notification: Notification) {
         pendingSave?.cancel()
+    }
+}
+
+/// How plain text is shown, in its own window and for Open Files in the
+/// notes window: plain text only, in the editor's font, spacing and theme.
+enum PlainTextLook {
+    /// No rich text, images or automatic substitutions.
+    static func configure(_ textView: NSTextView) {
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsImageEditing = false
+        textView.allowsUndo = true
+        textView.usesFindBar = true
+        textView.isIncrementalSearchingEnabled = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.isAutomaticLinkDetectionEnabled = false
+        textView.smartInsertDeleteEnabled = false
+    }
+
+    /// Applies the font, line spacing, colours and spelling from Settings; returns the theme.
+    @discardableResult
+    static func apply(to textView: NSTextView, defaults: UserDefaults = .standard) -> EditorTheme {
+        let theme = EditorTheme.named(defaults.string(forKey: Prefs.editorTheme) ?? EditorTheme.standard.id)
+        let accent = theme.accentNS(fallback: IconStyle.current.accentNS)
+        let size = defaults.object(forKey: Prefs.fontSize) as? Double ?? Prefs.defaultFontSize
+        let font = FontChoice.font(defaults.string(forKey: Prefs.fontName) ?? FontChoice.defaultName, size: size)
+        if textView.font != font { textView.font = font }
+        // The editor's line spacing.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = ceil(font.pointSize * 1.45)
+        paragraph.maximumLineHeight = paragraph.minimumLineHeight
+        textView.defaultParagraphStyle = paragraph
+        textView.typingAttributes[.paragraphStyle] = paragraph
+        if let storage = textView.textStorage {
+            storage.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: storage.length))
+        }
+        textView.textColor = theme.textNS()
+        textView.backgroundColor = theme.backgroundNS()
+        textView.insertionPointColor = accent
+        textView.selectedTextAttributes = [.backgroundColor: theme.selectionNS(fallback: accent)]
+        textView.isContinuousSpellCheckingEnabled = defaults.bool(forKey: Prefs.spellCheck)
+        return theme
     }
 }

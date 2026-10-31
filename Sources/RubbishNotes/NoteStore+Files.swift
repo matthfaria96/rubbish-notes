@@ -31,14 +31,6 @@ extension NoteStore {
         }
     }
 
-    func importWithPanel() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.plainText, .rtf, .rtfd, .html, UTType("net.daringfireball.markdown") ?? .plainText]
-        if panel.runModal() == .OK { importFiles(panel.urls) }
-    }
-
     func exportActiveWithPanel() {
         guard let note = active else { return }
         flushNow()

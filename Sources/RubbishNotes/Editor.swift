@@ -502,6 +502,14 @@ struct EditorView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    /// The window's undo stack outlives this view (an outside file takes its
+    /// place); the note's typing goes with it.
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        guard let textView = coordinator.textView, let undo = textView.undoManager else { return }
+        undo.removeAllActions(withTarget: textView)
+        if let storage = textView.textStorage { undo.removeAllActions(withTarget: storage) }
+    }
+
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
         scroll.drawsBackground = true

@@ -2,9 +2,9 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// Files the system hands the app: a Finder double-click, Open With, a drop
-/// on the Dock icon. A note's own .txt opens as that note; any other text
-/// file opens in a plain window (`PlainTextDocument`) and is never imported.
-/// Other kinds of file (RTF, HTML) are imported as before.
+/// on the Dock icon, File › Open. A note's own .txt opens as that note; any
+/// other text file (.txt, .md) goes to Open Files in the sidebar and is edited
+/// in place, never imported. Other kinds of file (RTF, HTML) are imported as before.
 enum FileOpening {
     /// Set by the main window: shows it, reopening it if it was closed.
     static var showMainWindow: (() -> Void)?
@@ -26,8 +26,10 @@ enum FileOpening {
                 // The index or an attachment: shown in its notes, never opened on its own.
                 needsNotes = true
                 showMainWindow?()
-            case .plainWindow:
-                PlainTextDocument.open(url)
+            case .outsideFile:
+                needsNotes = true
+                showMainWindow?()
+                OpenedFiles.shared.open(url)
             case .importFile:
                 imports.append(url)
             }
@@ -53,14 +55,25 @@ enum FileOpening {
     }
 
     enum Route: Equatable {
-        case note(NoteEntry), library, plainWindow, importFile
+        case note(NoteEntry), library, outsideFile, importFile
     }
 
     static func route(_ url: URL, in store: NoteStore) -> Route {
         if let note = store.libraryNote(at: url) { return .note(note) }
         if store.isInLibrary(url) { return .library }
-        return isPlainText(url) ? .plainWindow : .importFile
+        return isPlainText(url) ? .outsideFile : .importFile
     }
+
+    /// File › Open: text files open in place, RTF and HTML become notes.
+    static func openWithPanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.plainText, .rtf, .rtfd, .html, markdown]
+        if panel.runModal() == .OK { open(panel.urls) }
+    }
+
+    static let markdown = UTType("net.daringfireball.markdown") ?? .plainText
 
     /// .txt and other plain text (Markdown, source code); not RTF or HTML.
     static func isPlainText(_ url: URL) -> Bool {
@@ -70,7 +83,7 @@ enum FileOpening {
     }
 }
 
-/// Rubbish Notes as the Mac's default app for .txt files (Settings › General).
+/// Rubbish Notes as the Mac's default app for .txt and .md files (Settings › General).
 enum DefaultTextApp {
     /// The app that opens .txt files now, if any.
     static var currentHandler: URL? {
@@ -89,10 +102,12 @@ enum DefaultTextApp {
         currentHandler.map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") }
     }
 
-    /// Asks macOS to open .txt files with this app; the system may ask the person to confirm.
+    /// Asks macOS to open .txt (then .md) files with this app; the system may ask the person to confirm.
     static func makeDefault(completion: @escaping (Bool) -> Void) {
         NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: .plainText) { error in
-            DispatchQueue.main.async { completion(error == nil) }
+            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: FileOpening.markdown) { _ in
+                DispatchQueue.main.async { completion(error == nil) }
+            }
         }
     }
 }

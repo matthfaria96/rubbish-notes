@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @EnvironmentObject private var store: NoteStore
+    @EnvironmentObject private var files: OpenedFiles
     @Binding var query: String
     /// Set in the tabs layout's panel: the box being looked at there, which
     /// changes only the panel. The window follows when a note is picked.
@@ -21,9 +22,18 @@ struct SidebarView: View {
         // Each note followed by its sub-notes (unless hidden); search looks inside sub-notes too.
         let pinned = store.outline(store.pinnedNotes(in: box), query: query)
         let others = store.outline(store.listNotes(in: box), query: query)
+        let opened = openedFiles
         // The list ends above the box switcher instead of scrolling under it.
         VStack(spacing: 0) {
         List(selection: selection) {
+            if !opened.isEmpty {
+                Section {
+                    ForEach(opened) { OpenedFileRow(file: $0).tag($0.id) }
+                } header: {
+                    Text("Open Files")
+                        .help("Text files from other folders, edited in place as plain text")
+                }
+            }
             if !pinned.isEmpty {
                 Section {
                     ForEach(pinned) { row($0) }
@@ -44,7 +54,7 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .overlay {
-            if pinned.isEmpty && others.isEmpty {
+            if pinned.isEmpty && others.isEmpty && opened.isEmpty {
                 if query.isEmpty { emptyBox } else { ContentUnavailableView.search(text: query) }
             }
         }
@@ -56,7 +66,7 @@ struct SidebarView: View {
             searchField.padding(.top, browsing == nil ? 0 : 12)
         }
         .onDeleteCommand {
-            guard browsing == nil, let id = store.activeID, store.box != .trash else { return }
+            guard browsing == nil, files.activeID == nil, let id = store.activeID, store.box != .trash else { return }
             store.trash(id)
         }
         .confirmationDialog("Empty the Trash?", isPresented: $confirmEmpty.value) {
@@ -116,11 +126,26 @@ struct SidebarView: View {
         }
     }
 
+    /// Outside files sit above the notes in the inbox, like the pinned ones.
+    private var openedFiles: [OpenedFile] {
+        guard box == .inbox else { return [] }
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return files.files }
+        return files.files.filter { $0.name.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+    }
+
+    /// One selection for notes and outside files (their ids never meet).
     private var selection: Binding<UUID?> {
         Binding(
-            get: { store.active?.location == box ? store.activeID : nil },
+            get: { files.activeID ?? (store.active?.location == box ? store.activeID : nil) },
             set: { id in
-                if browsing != nil, let id { store.openNote(id, in: box) } else { store.select(id) }
+                if let id, files.files.contains(where: { $0.id == id }) {
+                    files.select(id)
+                } else if browsing != nil, let id {
+                    store.openNote(id, in: box)
+                } else {
+                    store.select(id)
+                }
             }
         )
     }

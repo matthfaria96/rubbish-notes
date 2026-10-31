@@ -18,6 +18,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.plain-text</string>
+				<string>net.daringfireball.markdown</string>
 			</array>
 		</dict>
 	</array>
@@ -45,7 +46,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.1.2</string>
 	<key>CFBundleVersion</key>
-	<string>7</string>
+	<string>8</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>

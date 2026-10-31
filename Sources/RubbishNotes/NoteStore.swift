@@ -102,6 +102,9 @@ final class NoteStore: ObservableObject {
     weak var undoManager: UndoManager?
     /// Set by the editor: whether its find bar is showing.
     var findBarVisible: (() -> Bool)?
+    /// Called whenever a note is picked, even the one already open: an outside
+    /// file shown in its place gives way (`OpenedFiles`).
+    var willSelectNote: (() -> Void)?
     /// Full text of every note, for sidebar search.
     private var contents: [UUID: String] = [:]
 
@@ -129,7 +132,7 @@ final class NoteStore: ObservableObject {
     /// Larger files are not imported, and not read when scanning the folders.
     static let maxFileBytes = 20 * 1024 * 1024
 
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
 
     /// `rootDir` and `defaults` are injectable so tests can run against a
     /// temporary folder without touching the real notes.
@@ -240,6 +243,7 @@ final class NoteStore: ObservableObject {
     // MARK: Editing
 
     func select(_ id: UUID?) {
+        willSelectNote?()
         if let id, id == activeID { return }
         flushNow()
         guard let id, let i = notes.firstIndex(where: { $0.id == id }) else {
@@ -592,7 +596,9 @@ final class NoteStore: ObservableObject {
     private func loadIndex() {
         guard let data = try? Data(contentsOf: indexURL),
               let decoded = try? JSONDecoder().decode([NoteEntry].self, from: data) else { return }
-        notes = decoded
+        // A repeated id (a hand-edited index) would break the lists; the first one wins.
+        var seen = Set<UUID>()
+        notes = decoded.filter { seen.insert($0.id).inserted }
     }
 
     /// Writes an index save still waiting (on quit).
@@ -664,6 +670,36 @@ final class NoteStore: ObservableObject {
         saveIndex()
     }
 
+    /// Reads the folders and the index again after a backup replaced them,
+    /// opening the note saved as open (the backup's, when it brought settings).
+    /// The caller saves the editor first (`flushNow`), before the files change.
+    func reloadFromDisk() {
+        pendingFlush?.cancel()
+        pendingFlush = nil
+        dirty = false
+        bodyCache = [:]
+        notes = []
+        loadIndex()
+        reconcile()
+        let saved = defaults.string(forKey: Prefs.activeNote).flatMap(UUID.init(uuidString:))
+        activeID = nil
+        if let note = notes.first(where: { $0.id == saved }) {
+            openNote(note.id, in: note.location)
+        } else {
+            box = .inbox
+            select(visible.first?.id)
+        }
+    }
+
+    /// Adds entries whose files were just copied into the folders (a merged
+    /// backup), then reads those files for the lists.
+    func absorb(_ entries: [NoteEntry]) {
+        lastSelfWrite = Date()
+        notes.append(contentsOf: entries)
+        releaseOrphans()
+        reconcile()
+    }
+
     private func startWatching() {
         for dir in dirs.values {
             let fd = open(dir.path, O_EVTONLY)
@@ -713,7 +749,8 @@ final class NoteStore: ObservableObject {
         // Editors that save atomically replace the file we were watching.
         watchActiveFile()
         if active == nil {
-            select(visible.first?.id)
+            // With no notes at all there is nothing to open (and an outside file stays).
+            if let first = visible.first?.id { select(first) }
         } else if let note = active, !dirty,
                   let disk = try? String(contentsOf: url(for: note), encoding: .utf8), disk != text {
             text = disk

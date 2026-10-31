@@ -8,6 +8,9 @@
     <!-- Files the person picks in Open/Save panels or drops on the window. -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
+    <!-- Open Files: reopen outside .txt/.md files after a relaunch. -->
+    <key>com.apple.security.files.bookmarks.app-scope</key>
+    <true/>
     <!-- File > Print. -->
     <key>com.apple.security.print</key>
     <true/>
