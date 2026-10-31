@@ -65,7 +65,8 @@
 "Status: %@ — click to change" = "Status: %@ – zum Ändern klicken";
 "Image kept in the footer" = "Bild unten abgelegt";
 "Open Image" = "Bild öffnen";
-"Show status dot in the sidebar" = "Status in der Seitenleiste zeigen";
+"Note status" = "Notizstatus";
+"Coloured dots for Open, In Progress and Done in the list, the tabs and the footer. Off, nothing shows." = "Farbige Punkte für Offen, In Arbeit und Erledigt in der Liste, den Tabs und der Fußzeile. Aus: nichts wird angezeigt.";
 "%ld images" = "%ld Bilder";
 "Collapse" = "Einklappen";
 "Export" = "Exportieren";

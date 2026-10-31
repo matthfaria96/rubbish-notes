@@ -12,7 +12,8 @@ enum Prefs {
     static let ruled = "RubbishNotes.ruledLines"
     static let floatOnTop = "RubbishNotes.floatOnTop"
     static let activeNote = "RubbishNotes.activeNoteID"
-    static let sidebarStatus = "RubbishNotes.sidebarStatus"
+    /// Note status (dots in the lists, tabs and footer); off by default, so nothing distracts.
+    static let statusEnabled = "RubbishNotes.statusEnabled"
     /// See-through glass behind the sidebar (on by default).
     static let sidebarGlass = "RubbishNotes.sidebarGlass"
     /// "sidebar" (vertical list) or "tabs" (horizontal strip above the note).

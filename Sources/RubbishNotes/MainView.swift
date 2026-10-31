@@ -20,6 +20,7 @@ struct MainView: View {
     @AppStorage(Prefs.editorTheme) private var themeID = EditorTheme.standard.id
     /// Hides everything around the text except the button that ends it.
     @AppStorage(Prefs.focusMode) private var focusMode = false
+    @AppStorage(Prefs.statusEnabled) private var statusEnabled = false
     @StateObject private var selectionState = ViewState(SelectionStats())
     @StateObject private var toastState = ViewState<Toast?>(nil)
     @StateObject private var toastTask = ViewState<DispatchWorkItem?>(nil)
@@ -419,14 +420,15 @@ struct MainView: View {
         let words = hasSelection ? selection.words : store.counts.words
         let characters = hasSelection ? selection.characters : store.counts.characters
         let room = footerMiddleWidth
-        let showCounts = room >= 270
+        // Without status the counts have the capsule to themselves.
+        let showCounts = !statusEnabled || room >= 270
         let showName = room >= 190
         let counts = [
             words == 1 ? L("1 word") : L("%ld words", words),
             characters == 1 ? L("1 character") : L("%ld characters", characters),
         ].joined(separator: " · ") + (hasSelection ? " " + L("selected") : "")
         return HStack(spacing: 6) {
-            if let note = store.active {
+            if statusEnabled, let note = store.active {
                 StatusDots(status: note.currentStatus, showsName: showName) { store.setStatus(note.id, $0) }
                     .layoutPriority(1)
                 if showCounts {

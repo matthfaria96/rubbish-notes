@@ -191,7 +191,7 @@ struct NoteTab: View {
     @Binding var renamingID: UUID?
     /// Its place in the outline: a sub-note, or a parent with sub-notes.
     var item: NoteListItem?
-    @AppStorage(Prefs.sidebarStatus) private var showStatus = true
+    @AppStorage(Prefs.statusEnabled) private var showStatus = false
     @StateObject private var hovering = ViewState(false)
 
     private var isSubnote: Bool { item?.isSubnote ?? false }

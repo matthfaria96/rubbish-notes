@@ -45,7 +45,7 @@ enum LibraryBackup {
     /// opened outside files stay with each Mac.
     static let settingKeys = [
         Prefs.appearance, Prefs.iconStyle, Prefs.editorTheme, Prefs.focusMode, Prefs.fontName, Prefs.fontSize,
-        Prefs.spellCheck, Prefs.ruled, Prefs.floatOnTop, Prefs.activeNote, Prefs.sidebarStatus,
+        Prefs.spellCheck, Prefs.ruled, Prefs.floatOnTop, Prefs.activeNote, Prefs.statusEnabled,
         Prefs.sidebarGlass, Prefs.notesLayout, Prefs.windowTranslucent, Prefs.windowOpacity,
     ]
 

@@ -65,7 +65,8 @@
 "Status: %@ — click to change" = "Status: %@ — click to change";
 "Image kept in the footer" = "Image kept in the footer";
 "Open Image" = "Open Image";
-"Show status dot in the sidebar" = "Show status dot in the sidebar";
+"Note status" = "Note status";
+"Coloured dots for Open, In Progress and Done in the list, the tabs and the footer. Off, nothing shows." = "Coloured dots for Open, In Progress and Done in the list, the tabs and the footer. Off, nothing shows.";
 "%ld images" = "%ld images";
 "Collapse" = "Collapse";
 "Export" = "Export";

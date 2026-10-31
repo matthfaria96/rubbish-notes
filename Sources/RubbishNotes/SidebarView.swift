@@ -258,7 +258,7 @@ struct NoteRow: View {
     /// On a parent: its sub-notes, and whether they are hidden.
     var subnoteCount = 0
     var collapsed = false
-    @AppStorage(Prefs.sidebarStatus) private var sidebarStatus = true
+    @AppStorage(Prefs.statusEnabled) private var statusEnabled = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -271,7 +271,7 @@ struct NoteRow: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                if sidebarStatus { StatusMark(status: note.currentStatus) }
+                if statusEnabled { StatusMark(status: note.currentStatus) }
                 if subnoteCount > 0 {
                     Spacer(minLength: 4)
                     SubnoteToggle(count: subnoteCount, collapsed: collapsed) {
@@ -389,6 +389,7 @@ struct BoxSwitcher: View {
 /// Everything a note offers on a right click, shared by the sidebar and the tabs.
 struct NoteContextMenu: View {
     @EnvironmentObject private var store: NoteStore
+    @AppStorage(Prefs.statusEnabled) private var statusEnabled = false
     let note: NoteEntry
     let onRename: () -> Void
 
@@ -403,7 +404,7 @@ struct NoteContextMenu: View {
                     store.togglePin(note.id)
                 }
             }
-            statusMenu
+            if statusEnabled { statusMenu }
             ExportMenu(noteID: note.id)
             Button("Show in Finder", systemImage: "folder") { store.reveal(note.id) }
             Divider()

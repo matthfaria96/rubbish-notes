@@ -4,9 +4,9 @@ Plain-text notes app for macOS (SwiftUI + AppKit, Swift Package, no Xcode projec
 This file is the state of the project, so a new session doesn't have to read the
 whole codebase. Keep it current when something here changes.
 
-Last updated 2026-10-31. Version **1.1.2** (build 7) is the current GitHub
-release. Build 8 (library backup .zip, Open Files for outside .txt/.md) is
-installed locally for testing, not released. The project lives on the external disk
+Last updated 2026-10-31. Version **1.2.0** (build 11) is the current GitHub
+release (library backup .zip, Open Files for outside .txt/.md without
+autosave, note status optional and off by default: `Prefs.statusEnabled`). The project lives on the external disk
 (`/Volumes/MacMiniDev/Moved/VSCode Temp/Rubbish Notes`; `~/Documents/VSCode Temp`
 is a symlink to it).
 
